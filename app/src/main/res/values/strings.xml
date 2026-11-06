@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PDF·한글 문서보기</string>
+    <string name="app_subtitle">PDF · HWP · HWPX</string>
+    <string name="open_file">파일 열기</string>
+    <string name="recent_documents">최근 문서</string>
+    <string name="no_documents">아직 열어본 문서가 없습니다.</string>
+    <string name="open_hint">파일 열기를 눌러 PDF 또는 한글 문서를 선택하세요.</string>
+    <string name="importing">문서를 안전하게 가져오는 중입니다.</string>
+    <string name="cannot_open">파일을 열 수 없습니다.</string>
+    <string name="ok">확인</string>
+    <string name="bookmark">북마크</string>
+    <string name="no_bookmarks">저장된 북마크가 없습니다.</string>
+    <string name="close">닫기</string>
+    <string name="back">뒤로</string>
+    <string name="prev_page">이전 페이지</string>
+    <string name="next_page">다음 페이지</string>
+    <string name="bookmark_list">북마크 목록</string>
+    <string name="add_bookmark">현재 페이지 북마크 추가</string>
+    <string name="remove_bookmark">현재 페이지 북마크 삭제</string>
+    <string name="page_not_yet">페이지 확인 중</string>
+    <string name="not_yet_opened">아직 열람하지 않음</string>
+    <string name="page_count_format">%d / %d 페이지</string>
+    <string name="file_format_format">%s · %s</string>
+</resources>

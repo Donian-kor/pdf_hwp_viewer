@@ -1,0 +1,16 @@
+{
+  "name": "docuview-hwp-assets",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "prebuild": "node scripts/copy-wasm.mjs",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@rhwp/core": "0.8.7"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0"
+  }
+}
