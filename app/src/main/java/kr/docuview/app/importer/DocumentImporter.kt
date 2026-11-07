@@ -1,5 +1,6 @@
 package kr.docuview.app.importer
 
+import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -11,6 +12,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
 import java.security.MessageDigest
 
 class DocumentImporter(
@@ -19,7 +21,7 @@ class DocumentImporter(
 ) {
     suspend fun import(uri: Uri): DocumentEntity = withContext(Dispatchers.IO) {
         val displayName = queryDisplayName(uri)
-        val input = context.contentResolver.openInputStream(uri)
+        val input = openInputStream(uri)
             ?: throw IOException("선택한 파일을 읽을 수 없습니다.")
 
         val documentsDir = File(context.filesDir, "documents").apply { mkdirs() }
@@ -109,6 +111,21 @@ class DocumentImporter(
             }
         }
         return uri.lastPathSegment?.substringAfterLast('/') ?: "문서"
+    }
+
+    private fun openInputStream(uri: Uri): InputStream? {
+        return try {
+            when (uri.scheme) {
+                ContentResolver.SCHEME_FILE -> {
+                    val path = uri.path ?: return null
+                    File(path).takeIf { it.isFile }?.inputStream()
+                }
+                ContentResolver.SCHEME_CONTENT -> context.contentResolver.openInputStream(uri)
+                else -> null
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     companion object {

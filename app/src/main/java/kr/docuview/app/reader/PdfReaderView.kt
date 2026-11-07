@@ -107,11 +107,24 @@ private fun PdfPages(
         if (pageCount > 0 && requestedPage in 0 until pageCount &&
             requestedPage != listState.firstVisibleItemIndex
         ) {
-            listState.animateScrollToItem(requestedPage)
+            listState.scrollToItem(requestedPage)
         }
     }
     LaunchedEffect(listState, pageCount) {
-        snapshotFlow { listState.firstVisibleItemIndex }
+        snapshotFlow {
+            val layoutInfo = listState.layoutInfo
+            val visibleItems = layoutInfo.visibleItemsInfo
+            if (visibleItems.isEmpty()) {
+                listState.firstVisibleItemIndex
+            } else {
+                val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+                val centerItem = visibleItems.minByOrNull { item ->
+                    val itemCenter = item.offset + item.size / 2
+                    kotlin.math.abs(itemCenter - viewportCenter)
+                }
+                centerItem?.index ?: listState.firstVisibleItemIndex
+            }
+        }
             .distinctUntilChanged()
             .collect { page -> if (pageCount > 0) onPageChanged(page.coerceIn(0, pageCount - 1)) }
     }

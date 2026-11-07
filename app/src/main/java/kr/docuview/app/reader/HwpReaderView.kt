@@ -23,7 +23,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -41,21 +40,23 @@ fun HwpReaderView(
     onPageCount: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     var webView by remember(documentId) { mutableStateOf<WebView?>(null) }
     var loaded by remember(documentId) { mutableStateOf(false) }
     var renderError by remember(documentId) { mutableStateOf<String?>(null) }
     var lastAppliedPage by remember(documentId) { mutableIntStateOf(initialPage.coerceAtLeast(0)) }
+    var totalPages by remember(documentId) { mutableIntStateOf(0) }
 
     val bridge = remember(documentId) {
         HwpJavascriptBridge(
             onLoaded = { count ->
                 loaded = true
+                totalPages = count
                 onPageCount(count)
             },
             onPageChanged = { page, count ->
                 lastAppliedPage = page
-                onPageChanged(page, count)
+                if (count > 0) totalPages = count
+                onPageChanged(page, count.coerceAtLeast(0))
             },
             onError = { message -> renderError = message },
         )
@@ -70,16 +71,27 @@ fun HwpReaderView(
                 documentId = documentId,
                 initialPage = initialPage,
                 bridge = bridge,
-            ).also { webView = it }
+            ).also { view ->
+                webView = view
+            }
         },
-        update = { /* Page jumps are handled by the keyed effect below. */ },
+        update = { view ->
+            // requestedPage가 변경될 때만 WebView 스크롤 위치 이동.
+            // 사용자 스크롤 중에는 해당되지 않으므로 충돌이 없음.
+            if (loaded) {
+                val safeRequestedPage = if (totalPages > 0) requestedPage.coerceIn(0, totalPages - 1) else requestedPage.coerceAtLeast(0)
+                if (safeRequestedPage != lastAppliedPage) {
+                    lastAppliedPage = safeRequestedPage
+                    view.evaluateJavascript("window.scrollToPage(${safeRequestedPage})", null)
+                }
+            }
+        },
     )
 
-    LaunchedEffect(webView, requestedPage, loaded) {
+    LaunchedEffect(webView, loaded) {
         val view = webView
-        if (view != null && loaded && requestedPage != lastAppliedPage) {
-            lastAppliedPage = requestedPage
-            view.evaluateJavascript("window.scrollToPage(${requestedPage.coerceAtLeast(0)})", null)
+        if (view != null && loaded) {
+            view.evaluateJavascript("window.__docuviewPageSync = true;", null)
         }
     }
 
@@ -107,6 +119,11 @@ fun HwpReaderView(
     }
 }
 
+private class CustomWebView(context: Context) : WebView(context) {
+    fun getScrollRange(): Int = computeVerticalScrollRange()
+    fun getScrollExtent(): Int = computeVerticalScrollExtent()
+}
+
 @SuppressLint("SetJavaScriptEnabled")
 private fun createHwpWebView(
     context: Context,
@@ -115,7 +132,7 @@ private fun createHwpWebView(
     initialPage: Int,
     bridge: HwpJavascriptBridge,
 ): WebView {
-    return WebView(context).apply {
+    return CustomWebView(context).apply {
         setBackgroundColor(android.graphics.Color.rgb(233, 235, 240))
         settings.apply {
             javaScriptEnabled = true // Required by the local rhwp WebAssembly renderer.

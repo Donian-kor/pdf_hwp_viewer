@@ -1,7 +1,6 @@
 import init, { HwpDocument } from '@rhwp/core';
 import './style.css';
 
-const statusNode = document.getElementById('status');
 const pagesNode = document.getElementById('pages');
 const params = new URLSearchParams(window.location.search);
 const startPage = Math.max(0, Number.parseInt(params.get('page') ?? '0', 10) || 0);
@@ -14,9 +13,28 @@ let pageObserver = null;
 let renderObserver = null;
 let reportTimer = 0;
 
-function setStatus(message, isError = false) {
-  statusNode.textContent = message;
-  statusNode.classList.toggle('error', isError);
+function schedulePageSync() {
+  window.clearTimeout(reportTimer);
+  reportTimer = window.setTimeout(() => {
+    const pageCount = pagesNode.children.length;
+    if (pageCount === 0) return;
+
+    const viewportCenter = window.innerHeight / 2 + window.scrollY;
+    let bestIndex = 0;
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    for (const page of pagesNode.children) {
+      const rect = page.getBoundingClientRect();
+      const pageCenter = rect.top + rect.height / 2 + window.scrollY;
+      const distance = Math.abs(pageCenter - viewportCenter);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = Number(page.dataset.pageIndex);
+      }
+    }
+
+    reportPage(bestIndex, pageCount);
+  }, 80);
 }
 
 function registerTextWidthMeasurement() {
@@ -34,10 +52,11 @@ function registerTextWidthMeasurement() {
 }
 
 function reportPage(pageIndex, pageCount) {
-  if (pageIndex === currentPage) return;
-  currentPage = pageIndex;
+  const safeIndex = Number.isFinite(pageIndex) ? Math.max(0, Math.min(pageIndex, pageCount - 1)) : 0;
+  if (safeIndex === currentPage && pageCount > 0) return;
+  currentPage = safeIndex;
   try {
-    globalThis.AndroidBridge?.onPageChanged?.(pageIndex, pageCount);
+    globalThis.AndroidBridge?.onPageChanged?.(safeIndex, pageCount);
   } catch (_) {
     // The Android bridge may not be present when this page is opened in a desktop browser.
   }
@@ -115,6 +134,10 @@ function buildPagePlaceholders(pageCount) {
     renderObserver.observe(page);
     pageObserver.observe(page);
   }
+
+  window.addEventListener('scroll', schedulePageSync, { passive: true });
+  window.addEventListener('resize', schedulePageSync);
+  schedulePageSync();
 }
 
 window.scrollToPage = (pageIndex) => {
@@ -128,10 +151,8 @@ async function openDocument() {
   if (!currentDocumentId) throw new Error('문서 식별 정보가 없습니다.');
 
   registerTextWidthMeasurement();
-  setStatus('한글 문서 엔진을 불러오는 중입니다.');
   await init({ module_or_path: new URL('rhwp_bg.wasm', document.baseURI).toString() });
 
-  setStatus('문서를 읽는 중입니다.');
   const response = await fetch(new URL('document', document.baseURI), { method: 'GET' });
   if (!response.ok) throw new Error(`문서 읽기에 실패했습니다. (${response.status})`);
   const bytes = new Uint8Array(await response.arrayBuffer());
@@ -142,7 +163,6 @@ async function openDocument() {
   if (pageCount > 5000) throw new Error('페이지가 5,000장을 초과하는 문서는 초기 버전에서 지원하지 않습니다.');
 
   buildPagePlaceholders(pageCount);
-  setStatus(`${pageCount}페이지 · 오프라인 문서 열람`);
   globalThis.AndroidBridge?.onDocumentLoaded?.(pageCount);
   window.scrollToPage(startPage);
 }
@@ -152,6 +172,5 @@ window.addEventListener('pagehide', cleanupPreviousDocument);
 openDocument().catch((error) => {
   cleanupPreviousDocument();
   const message = String(error?.message ?? error);
-  setStatus(`문서를 열 수 없습니다.\n${message}`, true);
   try { globalThis.AndroidBridge?.onError?.(message); } catch (_) { /* bridge unavailable */ }
 });
