@@ -6,3 +6,15 @@
 .idea/
 *.iml
 .DS_Store
+
+# Release artifacts and signing keys
+*.apk
+*.apk.idsig
+*.jks
+*.keystore
+
+# Design reference files
+stitch_docuview_android_reader_ui/
+
+# Agent config
+.codex/
