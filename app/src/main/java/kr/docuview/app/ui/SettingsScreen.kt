@@ -33,7 +33,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.outlined.BookmarkBorder
+
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -70,8 +70,6 @@ fun SettingsScreen(
     onBack: () -> Unit,
     restoreLastPage: Boolean = true,
     onRestoreLastPageChange: (Boolean) -> Unit = {},
-    showBookmarks: Boolean = true,
-    onShowBookmarksChange: (Boolean) -> Unit = {},
     compactMode: Boolean = false,
     onCompactModeChange: (Boolean) -> Unit = {},
     keepScreenOn: Boolean = true,
@@ -82,7 +80,6 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     var restoreLastPageState by remember(restoreLastPage) { mutableStateOf(restoreLastPage) }
-    var showBookmarksState by remember(showBookmarks) { mutableStateOf(showBookmarks) }
     var compactModeState by remember(compactMode) { mutableStateOf(compactMode) }
     var keepScreenOnState by remember(keepScreenOn) { mutableStateOf(keepScreenOn) }
     var showThemeDialog by remember { mutableStateOf(false) }
@@ -158,23 +155,6 @@ fun SettingsScreen(
                                 onCheckedChange = {
                                     restoreLastPageState = it
                                     onRestoreLastPageChange(it)
-                                },
-                            )
-                        },
-                    )
-
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-
-                    SettingRow(
-                        title = "북마크 표시",
-                        subtitle = "리더 상단에서 북마크 상태를 표시",
-                        icon = Icons.Outlined.BookmarkBorder,
-                        trailing = {
-                            Switch(
-                                checked = showBookmarksState,
-                                onCheckedChange = {
-                                    showBookmarksState = it
-                                    onShowBookmarksChange(it)
                                 },
                             )
                         },

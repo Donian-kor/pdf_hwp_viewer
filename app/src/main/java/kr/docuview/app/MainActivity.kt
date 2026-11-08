@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -241,7 +242,7 @@ private fun DocumentViewerApp(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp, vertical = 6.dp)
-                        .height(56.dp),
+                        .heightIn(min = 56.dp),
                 ) {
                     val navItems = listOf(
                         Triple("홈", Icons.Default.Home, 0),
@@ -302,7 +303,6 @@ private fun DocumentViewerApp(
                     dao = dao,
                     onBack = { activeDocument = null },
                     restoreLastPage = settings.restoreLastPage,
-                    showBookmarksOption = settings.showBookmarks,
                     compactMode = settings.compactMode,
                     keepScreenOn = settings.keepScreenOn,
                 )
@@ -311,8 +311,6 @@ private fun DocumentViewerApp(
                     onBack = { openHome() },
                     restoreLastPage = settings.restoreLastPage,
                     onRestoreLastPageChange = { settingsManager.setRestoreLastPage(it) },
-                    showBookmarks = settings.showBookmarks,
-                    onShowBookmarksChange = { settingsManager.setShowBookmarks(it) },
                     compactMode = settings.compactMode,
                     onCompactModeChange = { settingsManager.setCompactMode(it) },
                     keepScreenOn = settings.keepScreenOn,

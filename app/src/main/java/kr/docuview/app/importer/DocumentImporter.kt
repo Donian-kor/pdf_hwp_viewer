@@ -10,7 +10,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
-import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.security.MessageDigest
@@ -21,6 +20,46 @@ class DocumentImporter(
 ) {
     suspend fun import(uri: Uri): DocumentEntity = withContext(Dispatchers.IO) {
         val displayName = queryDisplayName(uri)
+
+        // For file:// URIs, use the original file path directly (no copy).
+        if (uri.scheme == ContentResolver.SCHEME_FILE) {
+            val path = uri.path ?: throw IOException("파일 경로를 읽을 수 없습니다.")
+            val file = File(path)
+            if (!file.isFile) throw IOException("파일을 찾을 수 없습니다.")
+            val size = file.length()
+            val limit = if (displayName.endsWith(".pdf", ignoreCase = true)) MAX_PDF_BYTES else MAX_HWP_BYTES
+            if (size > limit) {
+                throw IOException(
+                    if (limit == MAX_PDF_BYTES) "PDF 파일은 최대 256MB까지 가져올 수 있습니다."
+                    else "HWP/HWPX 파일은 메모리 보호를 위해 최대 64MB까지 지원합니다.",
+                )
+            }
+            val header = ByteArray(1024)
+            val headerLength = FileInputStream(file).use { it.read(header) }.coerceAtLeast(0)
+            val type = DocumentTypeDetector.detect(displayName, header.copyOf(headerLength))
+                ?: throw IOException("지원하지 않는 형식이거나 파일이 손상되었습니다. PDF, HWP 5.0, HWPX만 지원합니다.")
+
+            val id = computeHash(file)
+            val now = System.currentTimeMillis()
+            val document = dao.getDocument(id)?.copy(
+                displayName = displayName,
+                extension = type.extension,
+                localPath = file.absolutePath,
+                sizeBytes = size,
+                lastOpenedAt = now,
+            ) ?: DocumentEntity(
+                id = id,
+                displayName = displayName,
+                extension = type.extension,
+                localPath = file.absolutePath,
+                sizeBytes = size,
+                lastOpenedAt = now,
+            )
+            dao.upsertDocument(document)
+            return@withContext document
+        }
+
+        // For content:// URIs, copy to internal storage (fallback).
         val input = openInputStream(uri)
             ?: throw IOException("선택한 파일을 읽을 수 없습니다.")
 
@@ -31,12 +70,11 @@ class DocumentImporter(
             var totalBytes = 0L
             val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
             input.use { source ->
-                FileOutputStream(tempFile).buffered().use { output ->
+                java.io.FileOutputStream(tempFile).buffered().use { output ->
                     while (true) {
                         val count = source.read(buffer)
                         if (count < 0) break
                         totalBytes += count
-                        // Apply the conservative HWP cap while copying; PDFs may be larger.
                         val limit = if (displayName.endsWith(".pdf", ignoreCase = true)) {
                             MAX_PDF_BYTES
                         } else {
@@ -60,10 +98,6 @@ class DocumentImporter(
             val headerLength = FileInputStream(tempFile).use { it.read(header) }.coerceAtLeast(0)
             val type = DocumentTypeDetector.detect(displayName, header.copyOf(headerLength))
                 ?: throw IOException("지원하지 않는 형식이거나 파일이 손상되었습니다. PDF, HWP 5.0, HWPX만 지원합니다.")
-
-            if (type != DocumentType.PDF && totalBytes > MAX_HWP_BYTES) {
-                throw IOException("HWP/HWPX 파일은 최대 64MB까지 지원합니다.")
-            }
 
             val id = digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
             val finalFile = File(documentsDir, "$id.${type.extension}")
@@ -100,6 +134,19 @@ class DocumentImporter(
             tempFile.delete()
             throw error
         }
+    }
+
+    private fun computeHash(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        FileInputStream(file).use { input ->
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        return digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
     }
 
     private fun queryDisplayName(uri: Uri): String {

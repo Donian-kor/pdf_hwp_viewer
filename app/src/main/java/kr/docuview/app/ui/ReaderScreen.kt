@@ -75,7 +75,6 @@ fun ReaderScreen(
     dao: DocumentDao,
     onBack: () -> Unit,
     restoreLastPage: Boolean = true,
-    showBookmarksOption: Boolean = true,
     compactMode: Boolean = false,
     keepScreenOn: Boolean = true,
 ) {
@@ -88,8 +87,7 @@ fun ReaderScreen(
     var requestedPage by remember(document.id) { mutableIntStateOf(startPage) }
     var pageCount by remember(document.id) { mutableIntStateOf(document.totalPages.coerceAtLeast(0)) }
     var pendingPageRequest by remember(document.id) { mutableStateOf<Int?>(null) }
-    var showBookmarksDialog by remember { mutableStateOf(false) }
-    val isBookmarked = bookmarks.any { it.pageIndex == currentPage }
+
 
     LaunchedEffect(pageCount) {
         if (pageCount > 0) {
@@ -178,54 +176,7 @@ fun ReaderScreen(
                         )
                     }
 
-                    if (showBookmarksOption) {
-                        IconButton(
-                            onClick = {
-                                scope.launch(Dispatchers.IO) {
-                                    val existing = dao.getBookmark(document.id, currentPage)
-                                    if (existing == null) {
-                                        dao.insertBookmark(
-                                            BookmarkEntity(
-                                                documentId = document.id,
-                                                pageIndex = currentPage,
-                                                createdAt = System.currentTimeMillis(),
-                                            ),
-                                        )
-                                    } else {
-                                        dao.deleteBookmark(document.id, currentPage)
-                                    }
-                                }
-                            },
-                            modifier = Modifier
-                                .size(if (compactMode) 30.dp else 34.dp)
-                                .background(
-                                    if (isBookmarked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                                    shape = CircleShape,
-                                ),
-                        ) {
-                            Icon(
-                                if (isBookmarked) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
-                                contentDescription = if (isBookmarked) "현재 페이지 북마크 삭제" else "현재 페이지 북마크 추가",
-                                tint = if (isBookmarked) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(15.dp),
-                            )
-                        }
 
-                        Spacer(Modifier.width(4.dp))
-
-                        IconButton(
-                            onClick = { showBookmarksDialog = true },
-                            modifier = Modifier
-                                .size(if (compactMode) 30.dp else 34.dp)
-                                .background(MaterialTheme.colorScheme.surface, shape = CircleShape),
-                        ) {
-                            Icon(
-                                Icons.Default.Bookmarks,
-                                contentDescription = "북마크 목록",
-                                modifier = Modifier.size(15.dp),
-                            )
-                        }
-                    }
                 }
             }
         },
@@ -347,20 +298,7 @@ fun ReaderScreen(
         }
     }
 
-    if (showBookmarksDialog) {
-        BookmarkDialog(
-            bookmarks = bookmarks,
-            onDismiss = { showBookmarksDialog = false },
-            onSelect = { page ->
-                currentPage = page
-                requestedPage = page
-                showBookmarksDialog = false
-            },
-            onDelete = { page ->
-                scope.launch(Dispatchers.IO) { dao.deleteBookmark(document.id, page) }
-            },
-        )
-    }
+
 }
 
 @Composable
