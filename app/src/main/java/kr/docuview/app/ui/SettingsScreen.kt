@@ -1,10 +1,15 @@
 package kr.docuview.app.ui
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,10 +34,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -61,9 +67,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kr.docuview.app.R
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -77,13 +86,19 @@ fun SettingsScreen(
     themeMode: String = "SYSTEM",
     onThemeModeChange: (String) -> Unit = {},
     onClearRecentDocuments: () -> Unit = {},
+    onPrivacyPolicyClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val versionName = remember(context) {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
+            .getOrNull() ?: "-"
+    }
     var restoreLastPageState by remember(restoreLastPage) { mutableStateOf(restoreLastPage) }
     var compactModeState by remember(compactMode) { mutableStateOf(compactMode) }
     var keepScreenOnState by remember(keepScreenOn) { mutableStateOf(keepScreenOn) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showClearConfirmDialog by remember { mutableStateOf(false) }
+    var showPermissionRevokeConfirm by remember { mutableStateOf(false) }
     var cacheSize by remember { mutableLongStateOf(calculateCacheSize(context)) }
 
     val themeLabel = when (themeMode) {
@@ -232,6 +247,15 @@ fun SettingsScreen(
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
 
+                    SettingActionRow(
+                        title = "파일 접근 권한 취소",
+                        subtitle = "안드로이드 설정에서 권한을 끕니다",
+                        icon = Icons.Default.VisibilityOff,
+                        onClick = { showPermissionRevokeConfirm = true },
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+
                     // 임시 캐시 용량 확인 및 캐시 비우기
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -296,10 +320,11 @@ fun SettingsScreen(
                                 .background(MaterialTheme.colorScheme.primaryContainer),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Icon(
-                                Icons.Default.Info,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            Image(
+                                painter = painterResource(id = R.mipmap.ic_launcher),
+                                contentDescription = "앱 아이콘",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
                             )
                         }
                         Spacer(Modifier.width(14.dp))
@@ -313,6 +338,14 @@ fun SettingsScreen(
                         }
                     }
 
+                    Spacer(Modifier.height(10.dp))
+                    SettingActionRow(
+                        title = "개인정보처리방침",
+                        subtitle = "앱에서 처리하는 정보와 삭제 방법 안내",
+                        icon = Icons.Default.PrivacyTip,
+                        onClick = onPrivacyPolicyClick,
+                    )
+
                     Spacer(Modifier.height(14.dp))
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                     Spacer(Modifier.height(14.dp))
@@ -322,7 +355,7 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Text("버전", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("1.0.0")
+                        Text(versionName)
                     }
 
                     Spacer(Modifier.height(10.dp))
@@ -404,6 +437,43 @@ fun SettingsScreen(
                 TextButton(onClick = { showClearConfirmDialog = false }) {
                     Text("취소")
                 }
+            },
+        )
+    }
+
+    // 파일 접근 권한 취소 확인 대화상자
+    if (showPermissionRevokeConfirm) {
+        AlertDialog(
+            onDismissRequest = { showPermissionRevokeConfirm = false },
+            title = { Text("파일 접근 권한 취소") },
+            text = {
+                Text(
+                    "안드로이드 시스템 설정으로 이동하여 파일 접근 권한을 해제할 수 있습니다. " +
+                        "권한을 해제하면 기기 내 문서를 자동으로 검색하는 스캔 기능을 사용할 수 없게 됩니다. " +
+                        "설정 화면으로 이동하시겠습니까?",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showPermissionRevokeConfirm = false
+                        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                                data = Uri.parse("package:${context.packageName}")
+                            }
+                        } else {
+                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.parse("package:${context.packageName}")
+                            }
+                        }
+                        context.startActivity(intent)
+                    },
+                ) {
+                    Text("설정으로 이동", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPermissionRevokeConfirm = false }) { Text("취소") }
             },
         )
     }

@@ -13,8 +13,8 @@ android {
         applicationId = "kr.docuview.app"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -39,6 +39,20 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
+
+    // Keep the in-app privacy policy in sync with the single source of truth at the project root.
+    val privacyAssetsDir = layout.buildDirectory.dir("generated/assets/privacy")
+    val copyPrivacyPolicy = tasks.register("copyPrivacyPolicy", Copy::class) {
+        from(rootProject.file("privacy-policy.html"))
+        into(privacyAssetsDir)
+    }
+    sourceSets {
+        getByName("main") {
+            assets.srcDir { privacyAssetsDir }
+        }
+    }
+    tasks.matching { it.name == "mergeDebugAssets" || it.name == "mergeReleaseAssets" }
+        .configureEach { dependsOn(copyPrivacyPolicy) }
 }
 
 dependencies {

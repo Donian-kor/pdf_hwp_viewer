@@ -14,6 +14,12 @@ interface DocumentDao {
     @Query("SELECT * FROM documents WHERE id = :id LIMIT 1")
     suspend fun getDocument(id: String): DocumentEntity?
 
+    @Query("SELECT * FROM documents WHERE localPath = :path")
+    suspend fun getDocumentsByLocalPath(path: String): List<DocumentEntity>
+
+    @Query("SELECT * FROM documents WHERE displayName = :name")
+    suspend fun getDocumentsByName(name: String): List<DocumentEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertDocument(document: DocumentEntity)
 

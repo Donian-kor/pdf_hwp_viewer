@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DocuView 개인정보처리방침 (Privacy Policy)</title>
+<style>
+  :root {
+    color-scheme: light;
+    --ink: #1d2330;
+    --muted: #5b6475;
+    --line: #dfe3ea;
+    --accent: #1f5fa8;
+    --tint: #eef4fb;
+    --paper: #ffffff;
+    --note: #f6f7f9;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", "Segoe UI", Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 1.85;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    -webkit-text-size-adjust: 100%;
+  }
+  .page {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 40px 24px 64px;
+  }
+
+  .doc-title {
+    margin: 0 0 20px;
+    font-size: 1.9rem;
+    line-height: 1.35;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .meta {
+    margin: 0 0 28px;
+    padding: 16px 20px;
+    background: var(--note);
+    border-left: 4px solid var(--accent);
+    border-radius: 4px;
+    font-size: 0.95rem;
+  }
+  .meta dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; }
+  .meta dt { color: var(--muted); }
+  .meta dd { margin: 0; font-weight: 500; }
+
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin: 0 0 32px;
+    padding: 0;
+    list-style: none;
+  }
+  .tabs button {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 500;
+    padding: 8px 20px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--paper);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .tabs button[aria-selected="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .tabs button:focus-visible { outline: 3px solid #8fb7e6; outline-offset: 2px; }
+  .tabs { display: none; }
+  .js .tabs { display: flex; }
+
+  .toc {
+    margin: 0 0 36px;
+    padding: 18px 22px;
+    background: var(--tint);
+    border-radius: 6px;
+  }
+  .toc p { margin: 0 0 8px; font-weight: 700; font-size: 0.95rem; }
+  .toc ol { margin: 0; padding-left: 1.4em; columns: 2; column-gap: 32px; font-size: 0.95rem; }
+  .toc li { margin: 2px 0; break-inside: avoid; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  .lead { margin: 0 0 36px; }
+  section.item { margin: 0 0 40px; scroll-margin-top: 16px; }
+  h2 {
+    margin: 0 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--ink);
+    font-size: 1.3rem;
+    line-height: 1.45;
+    font-weight: 700;
+  }
+  h2 .no { color: var(--accent); margin-right: 6px; }
+  p { margin: 0 0 14px; }
+  ul, ol { margin: 0 0 14px; padding-left: 1.3em; }
+  li { margin: 0 0 10px; padding-left: 4px; }
+  li::marker { color: var(--accent); }
+  strong { font-weight: 700; }
+  a { color: var(--accent); }
+  a:hover { text-decoration: underline; }
+
+  .scope {
+    display: inline-block;
+    margin-left: 2px;
+    padding: 0 8px;
+    border-radius: 4px;
+    background: var(--note);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 500;
+    line-height: 1.7;
+    white-space: normal;
+  }
+  .steps { list-style: none; padding: 0; counter-reset: step; }
+  .steps li {
+    position: relative;
+    margin: 0 0 12px;
+    padding: 14px 16px 14px 56px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  .steps li::before {
+    counter-increment: step;
+    content: counter(step);
+    position: absolute;
+    left: 16px;
+    top: 14px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.9rem;
+    line-height: 28px;
+    text-align: center;
+  }
+  .note {
+    margin: 0 0 14px;
+    padding: 12px 16px;
+    background: var(--note);
+    border-radius: 6px;
+    font-size: 0.95rem;
+    color: var(--muted);
+  }
+  .summary {
+    margin: 0 0 20px;
+    padding: 16px 20px;
+    background: var(--tint);
+    border: 1px solid #cfe0f3;
+    border-radius: 6px;
+    font-weight: 500;
+  }
+  .table-wrap { overflow-x: auto; margin: 0 0 14px; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.93rem; min-width: 560px; }
+  .data-table th, .data-table td {
+    border: 1px solid var(--line);
+    padding: 10px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .data-table th { background: var(--tint); font-weight: 700; }
+  .contact {
+    padding: 18px 22px;
+    border: 2px solid var(--accent);
+    border-radius: 6px;
+  }
+  .contact dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 20px; }
+  .contact dt { color: var(--muted); }
+  .contact dd { margin: 0; font-weight: 500; }
+
+  .panel + .panel { margin-top: 56px; padding-top: 48px; border-top: 1px solid var(--line); }
+  .js .panel[hidden] { display: none; }
+  .js .panel + .panel { margin-top: 0; padding-top: 0; border-top: 0; }
+
+  @media (max-width: 560px) {
+    body { font-size: 15.5px; }
+    .page { padding: 28px 18px 48px; }
+    .doc-title { font-size: 1.5rem; }
+    .toc ol { columns: 1; }
+    .meta dl, .contact dl { grid-template-columns: 1fr; gap: 0; }
+    .meta dd, .contact dd { margin-bottom: 8px; }
+  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1 class="doc-title">DocuView 개인정보처리방침<br>Privacy Policy</h1>
+
+  <div class="meta">
+    <dl>
+      <dt>시행일자 (Effective Date)</dt><dd>2026년 11월 21일</dd>
+      <dt>개발자 (Developer)</dt><dd>Donian</dd>
+      <dt>적용 대상</dt><dd>DocuView Android 앱 v1.1.0 (kr.docuview.app)</dd>
+    </dl>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="언어 선택 / Language">
+    <button type="button" role="tab" id="tab-ko" aria-controls="ko" aria-selected="true">한국어</button>
+    <button type="button" role="tab" id="tab-en" aria-controls="en" aria-selected="false">English</button>
+  </div>
+
+  <!-- ============ 한국어 ============ -->
+  <div class="panel" id="ko" role="tabpanel" aria-labelledby="tab-ko" lang="ko">
+
+    <nav class="toc" aria-label="목차">
+      <p>목차</p>
+      <ol>
+        <li><a href="#ko-1">적용 범위와 핵심 원칙</a></li>
+        <li><a href="#ko-2">처리하는 정보 항목과 방법</a></li>
+        <li><a href="#ko-3">정보 이용 목적</a></li>
+        <li><a href="#ko-4">저장 위치와 보유 기간</a></li>
+        <li><a href="#ko-5">외부 전송 및 제3자 제공 여부</a></li>
+        <li><a href="#ko-6">기기 권한 사용</a></li>
+        <li><a href="#ko-7">HWP 렌더링(WebView) 처리</a></li>
+        <li><a href="#ko-8">데이터 삭제 방법</a></li>
+        <li><a href="#ko-9">이용자 권리와 아동의 개인정보 보호</a></li>
+        <li><a href="#ko-10">안전성 확보조치</a></li>
+        <li><a href="#ko-11">자동 수집 장치 (쿠키·광고 식별자)</a></li>
+        <li><a href="#ko-12">권익침해 구제·변경·문의처</a></li>
+      </ol>
+    </nav>
+
+    <p class="summary">DocuView는 문서를 기기 안에서만 읽는 오프라인 뷰어입니다. 회원가입·로그인, 서버 전송, 광고, 분석 도구를 사용하지 않으며, 사용자가 선택한 문서와 그에 따른 최소한의 기록만 기기 내부에 저장합니다.</p>
+
+    <p class="lead">이 방침은 Donian(이하 “개발자”)이 제공하는 Android 문서 뷰어 <strong>DocuView</strong>에만 적용됩니다. 다른 앱이나 웹사이트에 적용되지 않으며, 아래 내용은 실제 앱 구현을 기준으로 작성되었습니다.</p>
+
+    <section class="item" id="ko-1">
+      <h2><span class="no">1.</span>적용 범위와 핵심 원칙</h2>
+      <ul>
+        <li><strong>대상:</strong> DocuView Android 앱 v1.1.0 (<code>kr.docuview.app</code>). Google Play를 통해 배포되는 이 앱 자체에 한정됩니다.</li>
+        <li><strong>기능:</strong> PDF·HWP·HWPX 문서 열람, 최근 문서 목록, 페이지 이동·북마크, 문서 찾기, 파일 열기·삭제입니다. 문서 편집, 주석, 변환, 업로드 기능은 제공하지 않습니다.</li>
+        <li><strong>오프라인 원칙:</strong> 앱은 <strong>인터넷(INTERNET) 권한을 선언하지 않습니다.</strong> 개발자 서버로 데이터를 보내지 않으며, 외부 API를 호출하지 않습니다.</li>
+        <li><strong>계정·결제·광고 없음:</strong> 회원가입, 로그인, 인앱 결제, 구독, 광고 기능이 없으므로 계정 정보나 결제 정보, 광고 식별자를 처리하지 않습니다.</li>
+      </ul>
+    </section>
+
+    <section class="item" id="ko-2">
+      <h2><span class="no">2.</span>처리하는 정보 항목과 방법</h2>
+      <p>앱이 기기에서 처리·보관하는 정보는 다음과 같습니다. 이 정보는 모두 이용자의 기기 안에 남고 외부로 전송되지 않습니다.</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>항목</th><th>포함되는 값</th><th>생성·수집 방법</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>문서 원본 또는 사본</td>
+              <td>이용자가 선택하거나 다른 앱에서 열어 준 PDF/HWP/HWPX 파일 내용</td>
+              <td>시스템 파일 선택기 또는 외부 열기 요청으로 받은 파일을 읽습니다. <code>content://</code> URI는 앱 내부 <code>filesDir/documents/</code>에 사본을 만들고, <code>file://</code> URI는 원본 경로를 직접 사용합니다.</td>
+            </tr>
+            <tr>
+              <td>문서 메타데이터</td>
+              <td>SHA-256 내용 해시 기반 문서 ID, 표시 이름, 확장자, 로컬 경로, 파일 크기, 마지막 열람 시각, 마지막 페이지, 전체 페이지 수</td>
+              <td>문서를 가져올 때 생성하고, 열람 중 페이지가 바뀔 때 갱신하여 Room 데이터베이스에 저장합니다. 해시는 같은 내용의 파일 중복을 막는 식별자로만 사용합니다.</td>
+            </tr>
+            <tr>
+              <td>북마크</td>
+              <td>문서 ID, 페이지 인덱스(내부적으로 0부터 시작), 생성 시각</td>
+              <td>이용자가 뷰어에서 북마크를 추가할 때 저장하고, 삭제할 때 제거합니다.</td>
+            </tr>
+            <tr>
+              <td>앱 설정</td>
+              <td>마지막 페이지 복원 여부, 컴팩트 뷰, 화면 켜짐 유지, 테마 모드</td>
+              <td>이용자가 설정 화면에서 변경한 값을 <code>SharedPreferences</code>에 저장합니다.</td>
+            </tr>
+            <tr>
+              <td>문서 찾기 캐시</td>
+              <td>외부 저장소에서 발견한 PDF/HWP/HWPX 파일의 절대 경로와 스캔 완료 여부</td>
+              <td>이용자가 ‘문서 찾기’를 실행할 때 파일 이름과 경로만 확인해 캐시합니다. 문서 내용은 읽지 않습니다.</td>
+            </tr>
+            <tr>
+              <td>임시 캐시</td>
+              <td>앱 실행 중 생성되는 임시 파일</td>
+              <td>앱 캐시 디렉터리에 저장되며, 설정 화면에서 용량 확인과 삭제가 가능합니다.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">앱은 단말의 연락처, 위치, 사진·카메라, 마이크, SMS, 통화 기록, 기기 식별자(AD_ID 포함)를 읽지 않습니다.</p>
+    </section>
+
+    <section class="item" id="ko-3">
+      <h2><span class="no">3.</span>정보 이용 목적</h2>
+      <ul>
+        <li>이용자가 선택한 문서를 화면에 표시하고 페이지를 이동하거나 마지막 읽던 위치를 복원합니다.</li>
+        <li>최근 문서 목록, 페이지 북마크, 문서 찾기 결과를 기기에서 제공합니다.</li>
+        <li>이용자가 설정한 화면·읽기 환경을 다음 실행에도 유지합니다.</li>
+        <li>문서 찾기에서 이용자가 직접 선택한 파일을 열거나 삭제합니다.</li>
+        <li>PDF는 Android 플랫폼 렌더러로, HWP/HWPX는 앱에 내장된 WebAssembly 렌더러로 화면에 표시합니다.</li>
+      </ul>
+      <p>위 목적 외의 용도, 특히 광고, 사용자 프로파일링, 통계 분석, 서버 저장에는 사용하지 않습니다.</p>
+    </section>
+
+    <section class="item" id="ko-4">
+      <h2><span class="no">4.</span>저장 위치와 보유 기간</h2>
+      <ul>
+        <li><strong>문서 사본:</strong> 앱 내부 저장소 <code>filesDir/documents/</code>에 보관합니다. 원본 파일은 수정하지 않습니다.</li>
+        <li><strong>메타데이터·북마크:</strong> 앱 내부 데이터베이스 <code>docuview.db</code>에 보관합니다.</li>
+        <li><strong>설정·스캔 캐시:</strong> 앱 전용 <code>SharedPreferences</code>에 보관합니다.</li>
+        <li><strong>임시 캐시:</strong> 앱 캐시 디렉터리에 보관하며, 이용자가 ‘설정 &gt; 캐시 비우기’로 즉시 삭제할 수 있습니다.</li>
+      </ul>
+      <p>보관 기간은 이용자가 해당 데이터를 삭제하거나 앱을 제거할 때까지입니다. 개발자 서버나 클라우드에 별도로 백업하지 않으며, 앱은 <code>allowBackup=false</code>로 설정되어 있습니다. 앱을 삭제하면 내부 문서 사본, 데이터베이스, 설정, 캐시가 함께 제거됩니다.</p>
+      <p class="note">‘설정 &gt; 최근 문서 정리’는 데이터베이스의 최근 열람 기록(이에 연결된 북마크 포함)만 지웁니다. 외부 저장소의 원본 파일과 앱 내부 문서 사본 자체는 삭제하지 않습니다.</p>
+    </section>
+
+    <section class="item" id="ko-5">
+      <h2><span class="no">5.</span>외부 전송 및 제3자 제공 여부</h2>
+      <ul>
+        <li>앱에는 인터넷 권한이 없으므로 문서, 메타데이터, 북마크, 설정 값이 <strong>외부로 전송되지 않습니다.</strong></li>
+        <li>Firebase, Google Analytics, Crashlytics, AdMob, Google Play Billing, 외부 AI API 등 데이터를 수집하는 제3자 SDK를 사용하지 않습니다.</li>
+        <li>HWP/HWPX 렌더링에는 오픈소스 <code>@rhwp/core</code>(MIT)를 사용합니다. 이 라이브러리는 앱 번들에 포함되어 기기에서만 동작하며, 별도 서버로 데이터를 보내지 않습니다. 구성 요소 목록은 프로젝트의 <code>LICENSES.md</code>에서 확인할 수 있습니다.</li>
+        <li>개발자는 개인정보 처리업무를 외부에 위탁하지 않고, 국외로 이전하지 않으며, 수집한 정보를 판매하거나 제3자에게 제공하지 않습니다. 가명정보·민감정보를 별도로 처리하거나 자동화된 결정을 수행하지도 않습니다.</li>
+        <li>Google Play 스토어의 설치·배포 과정에서 Google이 자체 정책에 따라 처리하는 정보는 Google의 개인정보처리방침에 따르며, 이는 앱이 수집하는 정보와는 별개입니다.</li>
+      </ul>
+    </section>
+
+    <section class="item" id="ko-6">
+      <h2><span class="no">6.</span>기기 권한 사용</h2>
+      <p>앱은 아래 두 가지 파일 관련 권한만 선언합니다.</p>
+      <ul>
+        <li><strong><code>READ_EXTERNAL_STORAGE</code> (Android 10 이하, <code>maxSdkVersion=30</code>):</strong> 외부 저장소의 문서를 찾고 열기 위해 사용합니다.</li>
+        <li><strong><code>MANAGE_EXTERNAL_STORAGE</code> (Android 11 이상):</strong> ‘모든 파일 접근’ 권한이 필요한 기기에서 문서 찾기와 사용자가 선택한 파일 삭제를 위해 사용합니다.</li>
+      </ul>
+      <p>이 권한은 ‘문서 찾기’ 기능을 실행할 때 요청되며, 파일 이름과 경로를 확인하고 사용자가 지정한 파일을 여는 용도로만 씁니다. 권한을 허용하지 않아도 시스템 파일 선택기로 문서를 열 수 있습니다. 권한은 Android 설정 또는 앱의 <strong>‘설정 &gt; 파일 접근 권한 취소’</strong>에서 언제든지 철회할 수 있습니다.</p>
+      <p class="note">문서 찾기는 외부 저장소를 순회하며 최대 500개 파일, 200,000개 디렉터리까지만 확인합니다. 이 과정에서 문서 내용을 읽거나 전송하지 않습니다.</p>
+    </section>
+
+    <section class="item" id="ko-7">
+      <h2><span class="no">7.</span>HWP 렌더링(WebView) 처리</h2>
+      <p>HWP/HWPX 문서는 앱에 내장된 WebView와 WebAssembly 렌더러로 열립니다. WebView는 다음과 같이 제한됩니다.</p>
+      <ul>
+        <li>내장 HTML·JavaScript·WASM 파일과 <strong>선택된 문서 한 개</strong>만 제공합니다. 그 밖의 모든 요청은 차단됩니다.</li>
+        <li>가상 주소 <code>https://docviewer.local</code>에 대한 요청만 가로채며, 실제 외부 네트워크 접근은 허용하지 않습니다.</li>
+        <li>파일 접근(<code>allowFileAccess=false</code>), 콘텐츠 접근(<code>allowContentAccess=false</code>), DOM 저장소, 새 창 생성, 혼합 콘텐츠를 비활성화했습니다.</li>
+        <li>쿠키를 직접 저장하거나 제3자 쿠키를 허용하지 않으며, 응답에 <code>Cache-Control: no-store</code>를 적용합니다. 뷰어 종료 시 WebView 기록을 지우고 파기합니다.</li>
+        <li>문서 내용은 파싱을 위해 WebAssembly 메모리에 로드됩니다. 메모리 보호를 위해 HWP/HWPX는 64MiB, PDF는 256MiB로 파일 크기를 제한합니다.</li>
+      </ul>
+    </section>
+
+    <section class="item" id="ko-8">
+      <h2><span class="no">8.</span>데이터 삭제 방법</h2>
+      <p><strong>계정 삭제:</strong> DocuView는 회원가입과 로그인을 제공하지 않으므로 관리할 계정이 없습니다. 따라서 별도의 계정 삭제 절차는 없습니다.</p>
+      <ol class="steps">
+        <li><strong>개별 문서(외부 파일) 삭제:</strong> ‘문서 찾기’에서 파일을 길게 눌러 <strong>[삭제]</strong>를 선택하고 확인하세요. 선택한 파일은 휴지통으로 이동하지 않고 <strong>즉시 영구 삭제</strong>되며 복구할 수 없습니다. 함께 저장된 앱 내 관련 기록도 제거됩니다.</li>
+        <li><strong>최근 기록 정리:</strong> <strong>[설정 &gt; 최근 문서 정리]</strong>에서 최근 열람 목록과 북마크를 삭제할 수 있습니다. 원본 파일은 그대로 유지됩니다.</li>
+        <li><strong>임시 캐시 삭제:</strong> <strong>[설정 &gt; 캐시 비우기]</strong>에서 앱 캐시 디렉터리를 비웁니다.</li>
+        <li><strong>전체 데이터 삭제:</strong> Android 설정에서 <strong>앱을 제거(삭제)</strong>하면 내부 문서 사본, 데이터베이스, 설정, 캐시가 모두 삭제됩니다.</li>
+      </ol>
+      <p class="note">앱 내부에 복사된 문서 사본은 앱을 제거할 때 함께 지워집니다. 앱 내에서 사본 하나씩만 지우는 별도 메뉴는 제공하지 않습니다. 서버에 저장된 데이터가 없으므로 이메일로 별도 삭제 요청을 보낼 필요가 없습니다. 문의는 아래 연락처로 주세요.</p>
+    </section>
+
+    <section class="item" id="ko-9">
+      <h2><span class="no">9.</span>이용자 권리와 아동의 개인정보 보호</h2>
+      <ul>
+        <li>이용자는 자신의 정보에 대한 열람, 정정, 삭제, 처리 정지 및 동의 철회를 요청할 수 있습니다. 모든 정보가 기기에 있으므로 위 8항의 앱 내 삭제 방법을 사용하면 즉시 반영됩니다.</li>
+        <li>법정대리인을 포함한 권리 행사 요청은 아래 개인정보 보호책임자 이메일로 보내 주시면 확인 후 조치하겠습니다.</li>
+        <li>DocuView는 아동을 대상으로 설계되지 않았으며, 아동의 개인정보를 의도적으로 수집하지 않습니다. 광고 식별자를 수집하지 않고, Google Play 가족 정책(Families Policy)을 준수합니다.</li>
+      </ul>
+    </section>
+
+    <section class="item" id="ko-10">
+      <h2><span class="no">10.</span>안전성 확보조치</h2>
+      <ul>
+        <li>데이터를 앱 전용 내부 저장소에 보관하고, 외부 백업을 비활성화했습니다(<code>allowBackup=false</code>).</li>
+        <li>인터넷 권한이 없고, 평문 통신(<code>usesCleartextTraffic=false</code>)과 WebView의 외부 URL 로딩을 차단했습니다.</li>
+        <li>WebView를 샌드박스로 구성하고, 선택된 문서와 내장 리소스 외의 접근을 거부합니다.</li>
+        <li>파일 크기 제한(256MiB/64MiB)과 파일 형식 검사로 비정상적인 파일 처리를 줄입니다.</li>
+        <li>필요한 파일 권한만 요청하며, 이용자가 언제든 철회할 수 있습니다.</li>
+      </ul>
+    </section>
+
+    <section class="item" id="ko-11">
+      <h2><span class="no">11.</span>자동 수집 장치 (쿠키·광고 식별자)</h2>
+      <p>DocuView는 쿠키, 웹 비콘, 광고 식별자(AD_ID/AAID), 분석 SDK를 사용하지 않습니다. HWP 뷰어의 WebView는 DOM 저장소를 비활성화하고, 쿠키를 직접 저장하거나 제3자 쿠키를 허용하지 않으며, 외부 도메인 요청을 모두 차단합니다. 내장 리소스 응답은 캐시하지 않습니다.</p>
+      <p>따라서 자동 수집을 거부하기 위한 별도의 앱 설정은 없으며, 거부로 인해 제한되는 기능도 없습니다.</p>
+    </section>
+
+    <section class="item" id="ko-12">
+      <h2><span class="no">12.</span>권익침해 구제·방침 변경·문의처</h2>
+      <p><strong>권익침해 구제:</strong> 개인정보 침해로 인한 상담이나 분쟁 해결은 아래 기관에 요청할 수 있습니다.</p>
+      <ul>
+        <li>개인정보 침해신고센터 (한국인터넷진흥원): (국번없이) 118, <a href="https://privacy.kisa.or.kr" target="_blank" rel="noopener">privacy.kisa.or.kr</a></li>
+        <li>개인정보 분쟁조정위원회: (국번없이) 1833-6972, <a href="https://www.kopico.go.kr" target="_blank" rel="noopener">www.kopico.go.kr</a></li>
+        <li>대검찰청 사이버수사과: (국번없이) 1301, <a href="https://www.spo.go.kr" target="_blank" rel="noopener">www.spo.go.kr</a></li>
+        <li>경찰청 사이버수사국: (국번없이) 182, <a href="https://ecrm.cyber.go.kr" target="_blank" rel="noopener">ecrm.cyber.go.kr</a></li>
+      </ul>
+      <p><strong>방침 변경:</strong> 기능이나 법령·정책 변경에 따라 이 방침을 수정할 수 있습니다. 변경 시 시행일자와 내용을 이 페이지에 반영합니다. 개인정보 처리 방식에 중대한 변경이 생기면 앱 공지로 안내하겠습니다.</p>
+      <div class="contact">
+        <dl>
+          <dt>개발자 / 개인정보 보호책임자</dt><dd>Donian</dd>
+          <dt>이메일 (Contact Email)</dt><dd><a href="mailto:doniankhj@gmail.com">doniankhj@gmail.com</a></dd>
+        </dl>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ English ============ -->
+  <div class="panel" id="en" role="tabpanel" aria-labelledby="tab-en" lang="en">
+
+    <nav class="toc" aria-label="Table of contents">
+      <p>Contents</p>
+      <ol>
+        <li><a href="#en-1">Scope and Key Principles</a></li>
+        <li><a href="#en-2">Information We Process and How</a></li>
+        <li><a href="#en-3">How We Use Information</a></li>
+        <li><a href="#en-4">Storage and Retention</a></li>
+        <li><a href="#en-5">External Transmission and Third Parties</a></li>
+        <li><a href="#en-6">Device Permissions</a></li>
+        <li><a href="#en-7">HWP Rendering (WebView)</a></li>
+        <li><a href="#en-8">How to Delete Data</a></li>
+        <li><a href="#en-9">Your Rights and Children’s Privacy</a></li>
+        <li><a href="#en-10">Security Measures</a></li>
+        <li><a href="#en-11">Automatic Collection (Cookies / Ad ID)</a></li>
+        <li><a href="#en-12">Remedies, Changes, and Contact</a></li>
+      </ol>
+    </nav>
+
+    <p class="summary">DocuView is an offline document viewer. All reading happens on your device. We do not use accounts, server uploads, ads, or analytics; only the documents you choose and the minimal records needed to read them are stored locally.</p>
+
+    <p class="lead">This policy applies only to the Android app <strong>DocuView</strong> provided by Donian (“Developer”). It does not cover other apps or websites. The descriptions below reflect the app’s actual implementation.</p>
+
+    <section class="item" id="en-1">
+      <h2><span class="no">1.</span>Scope and Key Principles</h2>
+      <ul>
+        <li><strong>Scope:</strong> DocuView for Android v1.1.0 (<code>kr.docuview.app</code>) only.</li>
+        <li><strong>Features:</strong> Read PDF, HWP, and HWPX documents; recent documents list; page navigation and bookmarks; document discovery; opening and deleting user-selected files. Editing, annotations, conversion, and upload are not provided.</li>
+        <li><strong>Offline by design:</strong> The app declares <strong>no INTERNET permission.</strong> It does not send data to developer servers and does not call external APIs.</li>
+        <li><strong>No accounts, purchases, or ads:</strong> There is no sign-up, login, in-app purchase, subscription, or advertising, so no account, payment, or advertising identifier is processed.</li>
+      </ul>
+    </section>
+
+    <section class="item" id="en-2">
+      <h2><span class="no">2.</span>Information We Process and How</h2>
+      <p>All of the following information stays on your device and is never transmitted.</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>Item</th><th>Values</th><th>How it is created</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Document files</td>
+              <td>Contents of PDF/HWP/HWPX files you select or that another app opens with DocuView</td>
+              <td>Read from the system file picker or an external open intent. For <code>content://</code> URIs, a copy is stored in internal <code>filesDir/documents/</code>. For <code>file://</code> URIs, the original path is used directly.</td>
+            </tr>
+            <tr>
+              <td>Document metadata</td>
+              <td>SHA-256 content-hash document ID, display name, extension, local path, file size, last opened time, last page, total pages</td>
+              <td>Created when a document is imported and updated as pages change; stored in the local Room database. The hash is used only to deduplicate identical content.</td>
+            </tr>
+            <tr>
+              <td>Bookmarks</td>
+              <td>Document ID, page index (0-based internally), creation time</td>
+              <td>Saved when you add a bookmark and removed when you delete one.</td>
+            </tr>
+            <tr>
+              <td>App settings</td>
+              <td>Restore last page, compact view, keep screen on, theme mode</td>
+              <td>Preferences you change in Settings, stored in <code>SharedPreferences</code>.</td>
+            </tr>
+            <tr>
+              <td>Document discovery cache</td>
+              <td>Absolute paths of discovered PDF/HWP/HWPX files and a scan-complete flag</td>
+              <td>When you run “Find documents”, only file names and paths are cached; document contents are not read.</td>
+            </tr>
+            <tr>
+              <td>Temporary cache</td>
+              <td>Temporary runtime files</td>
+              <td>Stored in the app cache directory; size can be checked and cleared in Settings.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">The app does not read contacts, location, camera or photos, microphone, SMS, call logs, or device advertising identifiers (including AD_ID).</p>
+    </section>
+
+    <section class="item" id="en-3">
+      <h2><span class="no">3.</span>How We Use Information</h2>
+      <ul>
+        <li>To display your selected document, navigate pages, and restore the last reading position.</li>
+        <li>To show the recent documents list, bookmarks, and local document discovery results.</li>
+        <li>To keep your reading and display preferences between launches.</li>
+        <li>To open or delete a file you explicitly select in document discovery.</li>
+        <li>To render PDFs with the Android platform renderer and HWP/HWPX with the bundled WebAssembly renderer.</li>
+      </ul>
+      <p>Information is not used for advertising, profiling, analytics, or server-side storage.</p>
+    </section>
+
+    <section class="item" id="en-4">
+      <h2><span class="no">4.</span>Storage and Retention</h2>
+      <ul>
+        <li><strong>Document copies:</strong> internal app storage at <code>filesDir/documents/</code>. Original files are not modified.</li>
+        <li><strong>Metadata and bookmarks:</strong> internal database <code>docuview.db</code>.</li>
+        <li><strong>Settings and scan cache:</strong> app-private <code>SharedPreferences</code>.</li>
+        <li><strong>Temporary cache:</strong> app cache directory, removable via <strong>[Settings &gt; Clear cache]</strong>.</li>
+      </ul>
+      <p>Information is kept until you delete it or uninstall the app. Nothing is backed up to developer servers or the cloud; the app sets <code>allowBackup=false</code>. Uninstalling removes internal document copies, the database, settings, and cache.</p>
+      <p class="note">[Settings &gt; Clear recent documents] removes database history and its linked bookmarks only. Original files and internal document copies are not deleted by that action.</p>
+    </section>
+
+    <section class="item" id="en-5">
+      <h2><span class="no">5.</span>External Transmission and Third Parties</h2>
+      <ul>
+        <li>The app has no internet permission, so documents, metadata, bookmarks, and settings are <strong>never transmitted</strong>.</li>
+        <li>No data-collecting third-party SDKs are used: no Firebase, Google Analytics, Crashlytics, AdMob, Google Play Billing, or external AI APIs.</li>
+        <li>HWP/HWPX rendering uses the open-source <code>@rhwp/core</code> (MIT) bundled into the app. It runs entirely on your device and sends nothing to a server. See <code>LICENSES.md</code> in the project for component details.</li>
+        <li>The Developer does not entrust processing to third parties, transfer data abroad, sell data, or share it with third parties. No pseudonymized or sensitive data is separately processed, and no automated decisions are made.</li>
+        <li>Information Google processes for app distribution through Google Play follows Google’s privacy policy and is separate from data handled by this app.</li>
+      </ul>
+    </section>
+
+    <section class="item" id="en-6">
+      <h2><span class="no">6.</span>Device Permissions</h2>
+      <p>The app declares only two file-related permissions:</p>
+      <ul>
+        <li><strong><code>READ_EXTERNAL_STORAGE</code> (Android 10 and below, <code>maxSdkVersion=30</code>):</strong> to find and open documents on external storage.</li>
+        <li><strong><code>MANAGE_EXTERNAL_STORAGE</code> (Android 11 and above):</strong> where “All files access” is required for document discovery and deleting a file you explicitly choose.</li>
+      </ul>
+      <p>These permissions are requested when you use “Find documents”. They are used only to check file names/paths and open files you select. You can still open documents through the system file picker without granting them, and you can revoke them at any time in Android Settings or via <strong>[Settings &gt; Revoke file access]</strong> in the app.</p>
+      <p class="note">Document discovery traverses at most 500 files and 200,000 directories. It does not read or transmit document contents.</p>
+    </section>
+
+    <section class="item" id="en-7">
+      <h2><span class="no">7.</span>HWP Rendering (WebView)</h2>
+      <p>HWP/HWPX files are rendered in a bundled WebView with a WebAssembly renderer, restricted as follows:</p>
+      <ul>
+        <li>Only bundled HTML/JavaScript/WASM assets and <strong>the single selected document</strong> are served. All other requests are blocked.</li>
+        <li>Only the virtual origin <code>https://docviewer.local</code> is intercepted; no real external network access is allowed.</li>
+        <li>File access (<code>allowFileAccess=false</code>), content access (<code>allowContentAccess=false</code>), DOM storage, new windows, and mixed content are disabled.</li>
+        <li>Cookies are not set and third-party cookies are not enabled; responses are marked <code>Cache-Control: no-store</code>, and the WebView history is cleared and the view destroyed when the reader closes.</li>
+        <li>Document content is loaded into WebAssembly memory for parsing. File size limits are 64 MiB for HWP/HWPX and 256 MiB for PDF to protect memory usage.</li>
+      </ul>
+    </section>
+
+    <section class="item" id="en-8">
+      <h2><span class="no">8.</span>How to Delete Data</h2>
+      <p><strong>Account deletion:</strong> DocuView has no sign-up or login, so there is no account to delete and no separate account-deletion procedure.</p>
+      <ol class="steps">
+        <li><strong>Delete an external document:</strong> Long-press the file in “Find documents”, choose <strong>[Delete]</strong>, and confirm. The file is <strong>permanently deleted</strong> (not moved to Trash) and cannot be recovered. Related local records are removed too.</li>
+        <li><strong>Clear recent history:</strong> Use <strong>[Settings &gt; Clear recent documents]</strong> to remove recent history and bookmarks. Original files are kept.</li>
+        <li><strong>Clear temporary cache:</strong> Use <strong>[Settings &gt; Clear cache]</strong> to empty the app cache directory.</li>
+        <li><strong>Delete everything:</strong> <strong>Uninstall the app</strong> from Android Settings to remove all internal document copies, database records, settings, and cache.</li>
+      </ol>
+      <p class="note">Internal document copies are removed when the app is uninstalled; there is no separate menu to delete individual copies. Because no server-side data exists, no email deletion request is required. You can still contact us using the address below.</p>
+    </section>
+
+    <section class="item" id="en-9">
+      <h2><span class="no">9.</span>Your Rights and Children’s Privacy</h2>
+      <ul>
+        <li>You may request access to, correction of, deletion of, or restriction of processing of your information. Because data is stored on your device, the in-app deletion steps in Section 8 take effect immediately.</li>
+        <li>Requests, including those made by a legal guardian, can be sent to the Data Protection Contact below and will be handled without delay.</li>
+        <li>DocuView is not directed to children and does not knowingly collect children’s personal information. No advertising identifier is collected, and the app complies with the Google Play Families Policy.</li>
+      </ul>
+    </section>
+
+    <section class="item" id="en-10">
+      <h2><span class="no">10.</span>Security Measures</h2>
+      <ul>
+        <li>Data is stored in app-private internal storage, with external backup disabled (<code>allowBackup=false</code>).</li>
+        <li>No internet permission; cleartext traffic (<code>usesCleartextTraffic=false</code>) and external URL loading in the WebView are disabled.</li>
+        <li>The WebView is sandboxed: only the selected document and bundled resources are accessible.</li>
+        <li>File size limits (256 MiB / 64 MiB) and file type validation reduce malformed-file risks.</li>
+        <li>Only the necessary file permissions are requested, and you can revoke them at any time.</li>
+      </ul>
+    </section>
+
+    <section class="item" id="en-11">
+      <h2><span class="no">11.</span>Automatic Collection (Cookies / Ad ID)</h2>
+      <p>DocuView does not use cookies, web beacons, advertising identifiers (AD_ID/AAID), or analytics SDKs. The HWP WebView disables DOM storage, does not set cookies or enable third-party cookies, blocks all external domains, and does not cache bundled resources.</p>
+      <p>There is therefore no separate opt-out setting in the app, and no feature is limited by opting out.</p>
+    </section>
+
+    <section class="item" id="en-12">
+      <h2><span class="no">12.</span>Remedies, Changes, and Contact</h2>
+      <p><strong>Remedies:</strong> If your personal information is infringed, you may contact the following organizations:</p>
+      <ul>
+        <li>Personal Information Infringement Report Center (KISA): 118, <a href="https://privacy.kisa.or.kr" target="_blank" rel="noopener">privacy.kisa.or.kr</a></li>
+        <li>Personal Information Dispute Mediation Committee: 1833-6972, <a href="https://www.kopico.go.kr" target="_blank" rel="noopener">www.kopico.go.kr</a></li>
+        <li>Supreme Prosecutors’ Office Cyber Crime Investigation: 1301, <a href="https://www.spo.go.kr" target="_blank" rel="noopener">www.spo.go.kr</a></li>
+        <li>National Police Agency Cyber Bureau: 182, <a href="https://ecrm.cyber.go.kr" target="_blank" rel="noopener">ecrm.cyber.go.kr</a></li>
+      </ul>
+      <p><strong>Changes:</strong> This policy may be revised due to changes in features, laws, or policies. Updates will be reflected on this page with a new effective date; significant changes will also be announced in the app.</p>
+      <div class="contact">
+        <dl>
+          <dt>Developer / Data Protection Contact</dt><dd>Donian</dd>
+          <dt>Contact Email</dt><dd><a href="mailto:doniankhj@gmail.com">doniankhj@gmail.com</a></dd>
+        </dl>
+      </div>
+    </section>
+  </div>
+
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    root.classList.add('js');
+    var tabs = { ko: document.getElementById('tab-ko'), en: document.getElementById('tab-en') };
+    var panels = { ko: document.getElementById('ko'), en: document.getElementById('en') };
+
+    function show(lang) {
+      for (var k in panels) {
+        var on = (k === lang);
+        panels[k].hidden = !on;
+        tabs[k].setAttribute('aria-selected', on ? 'true' : 'false');
+      }
+    }
+    tabs.ko.addEventListener('click', function () { show('ko'); });
+    tabs.en.addEventListener('click', function () { show('en'); });
+
+    var start = (location.hash.indexOf('#en') === 0) ? 'en' : 'ko';
+    show(start);
+  })();
+</script>
+</body>
+</html>

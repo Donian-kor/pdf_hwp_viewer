@@ -46,14 +46,17 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import kr.docuview.app.data.DocumentDatabase
+import kr.docuview.app.data.DocumentScanCache
 import kr.docuview.app.data.SettingsManager
 import kr.docuview.app.importer.DocumentImporter
+import kr.docuview.app.importer.DocumentScanner
 import kr.docuview.app.ui.FileBrowserScreen
 import kr.docuview.app.ui.HomeScreen
+import kr.docuview.app.ui.PrivacyPolicyScreen
 import kr.docuview.app.ui.ReaderScreen
 import kr.docuview.app.ui.SettingsScreen
 import kr.docuview.app.ui.theme.DocuViewTheme
-import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -63,7 +66,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        hideSystemBars()
+        configureSystemBars()
         pendingOpenUri.value = resolveIncomingUri(intent)
 
         val database = DocumentDatabase.getInstance(applicationContext)
@@ -109,20 +112,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        hideSystemBars()
+        configureSystemBars()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
-            hideSystemBars()
+            configureSystemBars()
         }
     }
 
-    private fun hideSystemBars() {
+    private fun configureSystemBars() {
         WindowCompat.getInsetsController(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.statusBars())
-            hide(WindowInsetsCompat.Type.navigationBars())
+            show(WindowInsetsCompat.Type.navigationBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
     }
@@ -145,8 +148,12 @@ private fun DocumentViewerApp(
     var activeDocument by remember { mutableStateOf<kr.docuview.app.data.DocumentEntity?>(null) }
     var showBrowser by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
-    var scannedFiles by remember { mutableStateOf<List<File>>(emptyList()) }
+    var showPrivacyPolicy by remember { mutableStateOf(false) }
+    val scanCache = remember(context) { DocumentScanCache(context.applicationContext) }
+    var scannedFiles by remember { mutableStateOf(scanCache.loadFiles()) }
+    // 캐시된 목록은 즉시 보여주되, 프로세스 시작 후 첫 문서찾기 진입 시 한 번 재스캔한다.
     var hasScanned by remember { mutableStateOf(false) }
+    var scanningFiles by remember { mutableStateOf(false) }
     var importing by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var selectedTab by remember { mutableStateOf(0) }
@@ -154,6 +161,9 @@ private fun DocumentViewerApp(
     // 뒤로 가기 및 앱 완전 종료 처리
     BackHandler {
         when {
+            showPrivacyPolicy -> {
+                showPrivacyPolicy = false
+            }
             activeDocument != null -> {
                 activeDocument = null
             }
@@ -209,6 +219,19 @@ private fun DocumentViewerApp(
         showSettings = true
         showBrowser = false
         activeDocument = null
+    }
+
+    val startScan: () -> Unit = {
+        if (!scanningFiles) {
+            scope.launch {
+                scanningFiles = true
+                val result = withContext(Dispatchers.IO) { DocumentScanner.scan() }
+                scannedFiles = result
+                scanCache.save(result)
+                hasScanned = true
+                scanningFiles = false
+            }
+        }
     }
 
     // 초기 문서 URI가 있으면 해당 문서를 바로 엽니다.
@@ -297,7 +320,9 @@ private fun DocumentViewerApp(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            if (activeDocument != null) {
+            if (showPrivacyPolicy) {
+                PrivacyPolicyScreen(onBack = { showPrivacyPolicy = false })
+            } else if (activeDocument != null) {
                 ReaderScreen(
                     document = activeDocument!!,
                     dao = dao,
@@ -322,13 +347,15 @@ private fun DocumentViewerApp(
                             dao.clearRecentDocuments()
                         }
                     },
+                    onPrivacyPolicyClick = { showPrivacyPolicy = true },
                 )
             } else if (showBrowser || selectedTab == 1) {
                 FileBrowserScreen(
                     importing = importing,
                     initialFiles = scannedFiles,
                     hasScanned = hasScanned,
-                    onFilesScanned = { scannedFiles = it; hasScanned = true },
+                    scanning = scanningFiles,
+                    onScan = startScan,
                     onBack = { openHome() },
                     onOpenFile = { file ->
                         scope.launch {
@@ -342,6 +369,18 @@ private fun DocumentViewerApp(
                             } finally {
                                 importing = false
                             }
+                        }
+                    },
+                    onFileDeleted = { file ->
+                        scope.launch {
+                            val deletedDocuments = dao.getDocumentsByLocalPath(file.absolutePath)
+                                .ifEmpty { dao.getDocumentsByName(file.name) }
+                            deletedDocuments.forEach { dao.deleteDocument(it.id) }
+                            if (activeDocument?.localPath == file.absolutePath) {
+                                activeDocument = null
+                            }
+                            scannedFiles = scannedFiles.filter { it.absolutePath != file.absolutePath }
+                            scanCache.save(scannedFiles)
                         }
                     },
                 )

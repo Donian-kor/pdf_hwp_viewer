@@ -35,6 +35,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -103,20 +108,43 @@ fun FileBrowserScreen(
     importing: Boolean,
     initialFiles: List<File>,
     hasScanned: Boolean,
-    onFilesScanned: (List<File>) -> Unit,
+    scanning: Boolean,
+    onScan: () -> Unit,
     onBack: () -> Unit,
     onOpenFile: (File) -> Unit,
+    onFileDeleted: (File) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var hasPermission by remember { mutableStateOf(checkStoragePermission(context)) }
     var files by remember { mutableStateOf(initialFiles) }
-    var scanning by remember { mutableStateOf(false) }
+
+    LaunchedEffect(initialFiles) {
+        files = initialFiles
+    }
 
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var selectedFile by remember { mutableStateOf<File?>(null) }
     var deleteTargetFile by remember { mutableStateOf<File?>(null) }
     var menuAnchorOffset by remember { mutableStateOf(IntOffset.Zero) }
+    var showPermissionRationale by remember { mutableStateOf(false) }
+    var permissionDenied by remember { mutableStateOf(false) }
+
+    val needsAllFilesAccess = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+    val permissionName = if (needsAllFilesAccess) "전체 파일 접근 권한" else "저장소 읽기 권한"
+    val permissionReason = if (needsAllFilesAccess) {
+        "• 권한이 필요한 이유:\n" +
+            "안드로이드 시스템 정책상, 일반 미디어 권한으로는 다운로드·Documents·메신저 폴더 등 기기 곳곳에 저장된 PDF·HWP·HWPX 문서 파일에 접근할 수 없습니다.\n\n" +
+            "• 주요 용도:\n" +
+            "내 폰 안의 문서 파일을 자동으로 찾아 한곳에서 목록으로 확인하고, 원하는 문서를 빠르게 열람하기 위해 필요합니다.\n\n" +
+            "• 안심하고 사용하세요:\n" +
+            "문서 파일(.pdf, .hwp, .hwpx) 검색 및 읽기 목적으로만 작동하며 기존 파일을 변경·삭제하지 않습니다. 앱에 인터넷 권한이 전혀 없으므로 외부에 파일 데이터가 유출될 위험이 없습니다."
+    } else {
+        "• 권한이 필요한 이유:\n" +
+            "기기 내부 저장소에 위치한 PDF·HWP·HWPX 문서 파일을 찾아 목록으로 제공하고 뷰어로 열람하기 위해 권한이 필요합니다.\n\n" +
+            "• 안심하고 사용하세요:\n" +
+            "오직 문서 읽기 용도로만 작동하며, 개인정보 수집이나 파일 변경을 하지 않습니다."
+    }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -129,21 +157,14 @@ fun FileBrowserScreen(
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { granted -> hasPermission = granted || checkStoragePermission(context) }
-
-    fun doScan() {
-        scope.launch {
-            scanning = true
-            val result = withContext(Dispatchers.IO) { scanDocuments() }
-            files = result
-            onFilesScanned(result)
-            scanning = false
-        }
+    ) { granted ->
+        hasPermission = granted || checkStoragePermission(context)
+        permissionDenied = !hasPermission
     }
 
-    LaunchedEffect(hasPermission, hasScanned) {
-        if (hasPermission && !hasScanned && files.isEmpty() && !scanning) {
-            doScan()
+    LaunchedEffect(hasPermission, hasScanned, scanning) {
+        if (hasPermission && !hasScanned && !scanning) {
+            onScan()
         }
     }
 
@@ -159,7 +180,7 @@ fun FileBrowserScreen(
                     title = {
                         Column {
                             Text(
-                                text = "문서 찾기",
+                                text = "내 폰에 저장된 문서 찾기",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                             )
@@ -188,7 +209,7 @@ fun FileBrowserScreen(
                     },
                     actions = {
                         IconButton(
-                            onClick = { if (hasPermission && !scanning) doScan() },
+                            onClick = { if (hasPermission && !scanning) onScan() },
                             modifier = Modifier
                                 .size(40.dp)
                                 .background(MaterialTheme.colorScheme.surface, shape = CircleShape),
@@ -201,57 +222,113 @@ fun FileBrowserScreen(
         },
     ) { innerPadding ->
         if (!hasPermission) {
-            Column(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
                     .padding(horizontal = 24.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Box(
+                val isLargeScreen = maxHeight >= 700.dp
+
+                Column(
                     modifier = Modifier
-                        .size(88.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center,
+                        .fillMaxSize()
+                        .then(
+                            if (!isLargeScreen) Modifier.verticalScroll(rememberScrollState())
+                            else Modifier
+                        ),
+                    verticalArrangement = if (isLargeScreen) Arrangement.Center else Arrangement.Top,
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Icon(
-                        Icons.Default.Description,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(38.dp),
+                    if (!isLargeScreen) {
+                        Spacer(Modifier.height(24.dp))
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Default.Description,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(32.dp),
+                        )
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        text = "파일 접근 권한 안내",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
                     )
-                }
-                Spacer(Modifier.height(18.dp))
-                Text(
-                    text = "저장소 접근 권한이 필요합니다",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "문서를 찾고 불러오기 위해 권한을 허용해 주세요",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(22.dp))
-                Button(
-                    onClick = {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                                data = Uri.parse("package:${context.packageName}")
-                            }
-                            context.startActivity(intent)
-                        } else {
-                            permissionLauncher.launch(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "요청 권한: $permissionName",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(16.dp))
+
+                    // 1) 버튼을 안내 문구보다 위로 올려서 먼저 보여주기
+                    Button(
+                        onClick = { showPermissionRationale = true },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                    ) {
+                        Text(
+                            text = if (needsAllFilesAccess) "권한 설정하러 가기" else "권한 요청하기",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+
+                    if (permissionDenied) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            text = "권한이 허용되지 않아 문서를 찾아볼 수 없습니다. 위 버튼을 눌러 설정에서 허용해 주세요.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+
+                    Spacer(Modifier.height(20.dp))
+
+                    // 2) 안내 문구 영역 (대화면에서는 한눈에, 일반 폰에서는 내부 스크롤)
+                    Text(
+                        text = "권한이 필요한 이유 및 안내",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.Start),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = if (isLargeScreen) 280.dp else 220.dp),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .verticalScroll(rememberScrollState())
+                                .padding(16.dp),
+                        ) {
+                            Text(
+                                text = permissionReason,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
-                    },
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.height(48.dp),
-                ) {
-                    Text("권한 허용")
+                    }
+                    Spacer(Modifier.height(24.dp))
                 }
             }
         } else if (scanning) {
@@ -379,6 +456,52 @@ fun FileBrowserScreen(
             }
         }
 
+        if (showPermissionRationale) {
+            AlertDialog(
+                onDismissRequest = { showPermissionRationale = false },
+                title = { Text("$permissionName 안내") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = permissionReason,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = if (needsAllFilesAccess) {
+                                "💡 이동하는 설정 화면의 목록에서 'DocuView'를 찾은 뒤 '모든 파일 관리 허용' 스위치를 켜주시면 됩니다."
+                            } else {
+                                "💡 권한 허용 창에서 '허용'을 선택해 주시면 됩니다."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showPermissionRationale = false
+                            if (needsAllFilesAccess) {
+                                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                                    data = Uri.parse("package:${context.packageName}")
+                                }
+                                context.startActivity(intent)
+                            } else {
+                                permissionLauncher.launch(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+                            }
+                        },
+                    ) {
+                        Text(if (needsAllFilesAccess) "설정으로 이동" else "권한 허용")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showPermissionRationale = false }) { Text("취소") }
+                },
+            )
+        }
+
         if (showDeleteConfirm && deleteTargetFile != null) {
             val target = deleteTargetFile!!
             Dialog(
@@ -430,6 +553,7 @@ fun FileBrowserScreen(
                                         if (deleted) {
                                             Toast.makeText(context, "파일이 삭제되었습니다.", Toast.LENGTH_SHORT).show()
                                             files = files.filter { it.absolutePath != target.absolutePath }
+                                            onFileDeleted(target)
                                         } else {
                                             Toast.makeText(context, "파일을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.", Toast.LENGTH_SHORT).show()
                                         }
@@ -561,27 +685,3 @@ private fun checkStoragePermission(context: Context): Boolean {
     }
 }
 
-private fun scanDocuments(): List<File> {
-    val root = Environment.getExternalStorageDirectory()
-    val result = mutableListOf<File>()
-    val stack = ArrayDeque<File>()
-    stack.add(root)
-    var visited = 0
-    while (stack.isNotEmpty() && result.size < 500 && visited < 200000) {
-        val dir = stack.removeLast()
-        visited++
-        val children = dir.listFiles() ?: continue
-        for (child in children) {
-            if (child.isDirectory) {
-                if (child.name.startsWith(".")) continue
-                stack.add(child)
-            } else {
-                val name = child.name.lowercase()
-                if (name.endsWith(".pdf") || name.endsWith(".hwp") || name.endsWith(".hwpx")) {
-                    result.add(child)
-                }
-            }
-        }
-    }
-    return result.sortedByDescending { it.lastModified() }
-}

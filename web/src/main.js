@@ -9,31 +9,37 @@ let documentHandle = null;
 let currentDocumentId = '';
 const pageObjectUrls = new Map();
 let currentPage = -1;
-let pageObserver = null;
+let documentPageCount = 0;
 let renderObserver = null;
 let reportTimer = 0;
+
+const MAX_CACHED_PAGES = 24;
+const PLACEHOLDER_CHUNK = 250;
+
+function nextFrame() {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
 
 function schedulePageSync() {
   window.clearTimeout(reportTimer);
   reportTimer = window.setTimeout(() => {
-    const pageCount = pagesNode.children.length;
-    if (pageCount === 0) return;
+    if (documentPageCount <= 0) return;
 
-    const viewportCenter = window.innerHeight / 2 + window.scrollY;
-    let bestIndex = 0;
-    let bestDistance = Number.POSITIVE_INFINITY;
-
-    for (const page of pagesNode.children) {
-      const rect = page.getBoundingClientRect();
-      const pageCenter = rect.top + rect.height / 2 + window.scrollY;
-      const distance = Math.abs(pageCenter - viewportCenter);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestIndex = Number(page.dataset.pageIndex);
-      }
+    const centerY = window.innerHeight / 2;
+    const hit = document.elementFromPoint(window.innerWidth / 2, centerY);
+    const page = hit?.closest?.('.page');
+    if (page && pagesNode.contains(page)) {
+      reportPage(Number(page.dataset.pageIndex), documentPageCount);
+      return;
     }
 
-    reportPage(bestIndex, pageCount);
+    // Fallback for gaps between pages: the first page reaching the viewport center.
+    for (const candidate of pagesNode.children) {
+      if (candidate.getBoundingClientRect().bottom >= centerY) {
+        reportPage(Number(candidate.dataset.pageIndex), documentPageCount);
+        return;
+      }
+    }
   }, 80);
 }
 
@@ -62,13 +68,27 @@ function reportPage(pageIndex, pageCount) {
   }
 }
 
+function trimRenderedPages() {
+  while (pageObjectUrls.size > MAX_CACHED_PAGES) {
+    const oldest = pageObjectUrls.keys().next().value;
+    URL.revokeObjectURL(pageObjectUrls.get(oldest));
+    pageObjectUrls.delete(oldest);
+    const element = document.getElementById(`page-${oldest}`);
+    if (element) {
+      element.replaceChildren();
+      element.dataset.rendered = 'false';
+    }
+  }
+}
+
 function cleanupPreviousDocument() {
+  window.clearTimeout(reportTimer);
   renderObserver?.disconnect();
-  pageObserver?.disconnect();
   renderObserver = null;
-  pageObserver = null;
   for (const url of pageObjectUrls.values()) URL.revokeObjectURL(url);
   pageObjectUrls.clear();
+  documentPageCount = 0;
+  currentPage = -1;
   pagesNode.replaceChildren();
   if (documentHandle && typeof documentHandle.free === 'function') {
     documentHandle.free();
@@ -77,26 +97,30 @@ function cleanupPreviousDocument() {
 }
 
 function renderPage(index, pageElement) {
-  if (pageElement.dataset.rendered === 'true' || !documentHandle) return;
-  pageElement.dataset.rendered = 'true';
+  if (pageObjectUrls.has(index) || !documentHandle) return;
   try {
     const svg = documentHandle.renderPageSvg(index);
     const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
     const objectUrl = URL.createObjectURL(blob);
     pageObjectUrls.set(index, objectUrl);
+    pageElement.dataset.rendered = 'true';
     const image = document.createElement('img');
     image.alt = `문서 ${index + 1}페이지`;
     image.loading = 'lazy';
     image.src = objectUrl;
     pageElement.replaceChildren(image);
+    trimRenderedPages();
   } catch (error) {
+    pageElement.dataset.rendered = 'false';
     pageElement.textContent = `페이지 ${index + 1} 렌더링 실패: ${error?.message ?? error}`;
     pageElement.classList.add('error');
   }
 }
 
-function buildPagePlaceholders(pageCount) {
+async function buildPagePlaceholders(pageCount) {
   const fragment = document.createDocumentFragment();
+  pagesNode.replaceChildren();
+
   for (let index = 0; index < pageCount; index += 1) {
     const page = document.createElement('section');
     page.className = 'page';
@@ -104,35 +128,26 @@ function buildPagePlaceholders(pageCount) {
     page.dataset.pageIndex = String(index);
     page.setAttribute('aria-label', `${index + 1}페이지`);
     fragment.append(page);
+    if ((index + 1) % PLACEHOLDER_CHUNK === 0) {
+      pagesNode.append(fragment);
+      await nextFrame();
+    }
   }
-  pagesNode.replaceChildren(fragment);
+  pagesNode.append(fragment);
 
   renderObserver = new IntersectionObserver((entries) => {
     for (const entry of entries) {
-      const index = Number(entry.target.dataset.pageIndex);
       if (entry.isIntersecting) {
-        renderPage(index, entry.target);
-      } else {
-        // Drop rendered SVG blobs once pages move well outside the prefetch window.
-        const oldUrl = pageObjectUrls.get(index);
-        if (oldUrl) URL.revokeObjectURL(oldUrl);
-        pageObjectUrls.delete(index);
-        entry.target.replaceChildren();
-        entry.target.dataset.rendered = 'false';
+        renderPage(Number(entry.target.dataset.pageIndex), entry.target);
       }
     }
   }, { rootMargin: '900px 0px' });
 
-  pageObserver = new IntersectionObserver((entries) => {
-    const visible = entries
-      .filter((entry) => entry.isIntersecting)
-      .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-    if (visible) reportPage(Number(visible.target.dataset.pageIndex), pageCount);
-  }, { threshold: [0.25, 0.5, 0.75] });
-
-  for (const page of pagesNode.children) {
-    renderObserver.observe(page);
-    pageObserver.observe(page);
+  // Observe in chunks so a very long document does not block one animation frame.
+  const pages = pagesNode.children;
+  for (let index = 0; index < pages.length; index += 1) {
+    renderObserver.observe(pages[index]);
+    if ((index + 1) % 500 === 0) await nextFrame();
   }
 
   window.addEventListener('scroll', schedulePageSync, { passive: true });
@@ -143,7 +158,7 @@ function buildPagePlaceholders(pageCount) {
 window.scrollToPage = (pageIndex) => {
   const safeIndex = Math.max(0, Math.min(Number(pageIndex) || 0, pagesNode.children.length - 1));
   document.getElementById(`page-${safeIndex}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  reportPage(safeIndex, pagesNode.children.length);
+  reportPage(safeIndex, documentPageCount || pagesNode.children.length);
 };
 
 async function openDocument() {
@@ -162,8 +177,11 @@ async function openDocument() {
   if (!Number.isFinite(pageCount) || pageCount < 1) throw new Error('문서에서 페이지를 찾을 수 없습니다.');
   if (pageCount > 5000) throw new Error('페이지가 5,000장을 초과하는 문서는 초기 버전에서 지원하지 않습니다.');
 
-  buildPagePlaceholders(pageCount);
+  documentPageCount = pageCount;
+  // Report the count before building the DOM so the native reader can leave its loading state.
   globalThis.AndroidBridge?.onDocumentLoaded?.(pageCount);
+
+  await buildPagePlaceholders(pageCount);
   window.scrollToPage(startPage);
 }
 
