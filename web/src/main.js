@@ -292,6 +292,15 @@ window.clearPageAnnotations = (pageIndex) => {
   redrawPage(pageIndex);
 };
 
+// Clears every annotation in the document and repaints all visible pages.
+window.clearAllAnnotations = () => {
+  annotations = [];
+  activeStroke = null;
+  lastLoadedAnnotationsJson = '[]';
+  for (let i = 0; i < documentPageCount; i += 1) redrawPage(i);
+  document.querySelectorAll('.page').forEach((page) => redrawPage(Number(page.dataset.pageIndex)));
+};
+
 window.requestSharedPage = async (pageIndex) => {
   try {
     if (!documentHandle) throw new Error('document not loaded');
@@ -340,14 +349,19 @@ window.requestSharedPage = async (pageIndex) => {
   }
 };
 
-// Share multiple pages. Each page becomes its own PNG (ACTION_SEND_MULTIPLE).
+// Share multiple pages. Each page is sent separately because a single JSON array
+// of base64 PNGs would exceed the Binder transaction limit (~1MB) and fail silently.
 window.requestSharedPages = async (pageIndexes) => {
+  let sent = 0;
   try {
     if (!documentHandle) throw new Error('document not loaded');
+    // Prefer pages that actually carry annotations in this viewer instance,
+    // so sharing never depends on native DB state being in sync.
+    const annotatedPages = Array.from(new Set(annotations.map((a) => a.pageIndex))).sort((a, b) => a - b);
     const pages = Array.isArray(pageIndexes) && pageIndexes.length
       ? pageIndexes
-      : [currentPage];
-    const results = [];
+      : (annotatedPages.length ? annotatedPages : [currentPage]);
+    console.log('HwpShare js pages=' + JSON.stringify(pages));
     for (const rawPage of pages) {
       const targetPage = Math.max(0, Math.min(Number(rawPage) || 0, documentPageCount - 1));
       try {
@@ -371,15 +385,19 @@ window.requestSharedPages = async (pageIndexes) => {
         annotations.filter((a) => a.pageIndex === targetPage)
           .forEach((a) => drawStrokeOnContext(ctx, a, width, height));
         const dataUrl = canvas.toDataURL('image/png');
-        results.push(dataUrl.substring(dataUrl.indexOf(',') + 1));
+        // One PNG per bridge call keeps each payload under the Binder limit.
+        globalThis.AndroidBridge?.onSharedPage?.(dataUrl.substring(dataUrl.indexOf(',') + 1));
+        sent += 1;
       } catch (pageError) {
         // Skip pages that fail to render, but keep the ones that succeeded.
         try { globalThis.AndroidBridge?.onError?.(`share page ${targetPage}: ${pageError?.message ?? pageError}`); } catch (_) { }
       }
     }
-    globalThis.AndroidBridge?.onSharedPages?.(JSON.stringify(results));
   } catch (error) {
-    try { globalThis.AndroidBridge?.onSharedPages?.('[]'); } catch (_) { }
+    try { globalThis.AndroidBridge?.onError?.(`share: ${error?.message ?? error}`); } catch (_) { }
+  } finally {
+    // Tell Android the batch finished so it can share whatever was collected.
+    globalThis.AndroidBridge?.onSharedPageBatchDone?.(sent);
   }
 };
 

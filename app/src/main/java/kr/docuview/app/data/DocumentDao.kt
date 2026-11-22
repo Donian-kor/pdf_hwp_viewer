@@ -59,6 +59,9 @@ interface DocumentDao {
     @Query("DELETE FROM page_annotations WHERE documentId = :documentId AND pageIndex = :pageIndex")
     suspend fun clearPageAnnotations(documentId: String, pageIndex: Int)
 
+    @Query("DELETE FROM page_annotations WHERE documentId = :documentId")
+    suspend fun clearAllAnnotations(documentId: String)
+
     @Query("DELETE FROM documents WHERE id = :id")
     suspend fun deleteDocument(id: String)
 

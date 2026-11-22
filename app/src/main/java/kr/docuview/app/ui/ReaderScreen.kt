@@ -166,17 +166,19 @@ fun ReaderScreen(
 
     fun saveStroke(stroke: AnnotationStroke) {
         scope.launch {
-            dao.insertAnnotation(
-                PageAnnotationEntity(
-                    documentId = document.id,
-                    strokeId = stroke.id,
-                    pageIndex = stroke.pageIndex,
-                    tool = stroke.tool.name,
-                    color = stroke.color.name,
-                    points = encodePoints(stroke.points),
-                    createdAt = System.currentTimeMillis(),
-                ),
-            )
+            runCatching {
+                dao.insertAnnotation(
+                    PageAnnotationEntity(
+                        documentId = document.id,
+                        strokeId = stroke.id,
+                        pageIndex = stroke.pageIndex,
+                        tool = stroke.tool.name,
+                        color = stroke.color.name,
+                        points = encodePoints(stroke.points),
+                        createdAt = System.currentTimeMillis(),
+                    ),
+                )
+            }
         }
     }
 
@@ -454,7 +456,8 @@ fun ReaderScreen(
                         }
                     },
                     onClearAll = {
-                        scope.launch { dao.clearPageAnnotations(document.id, currentPage) }
+                        // 초기화: 이 문서의 모든 페이지 주석을 지운다.
+                        scope.launch { dao.clearAllAnnotations(document.id) }
                         if (!isPdf) hwpClearRequest++
                     },
                     onClose = { annotationMode = false },

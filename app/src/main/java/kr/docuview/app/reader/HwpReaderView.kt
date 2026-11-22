@@ -20,7 +20,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,50 +59,50 @@ fun HwpReaderView(
     var renderError by remember(documentId) { mutableStateOf<String?>(null) }
     var lastAppliedPage by remember(documentId) { mutableIntStateOf(initialPage.coerceAtLeast(0)) }
     var totalPages by remember(documentId) { mutableIntStateOf(0) }
-    var lastHandledShare by remember(documentId) { mutableIntStateOf(shareRequest) }
+    // Accumulates per-page PNGs while a multi-page share batch is running.
+    val pendingShareImages = remember(documentId) { mutableStateListOf<ByteArray>() }
+    val mainHandler = remember(documentId) { android.os.Handler(android.os.Looper.getMainLooper()) }
+    val currentOnSharedImages by rememberUpdatedState(onSharedImages)
+    fun flushPendingShare() {
+        val collected = pendingShareImages.toList()
+        pendingShareImages.clear()
+        if (collected.isNotEmpty()) currentOnSharedImages(collected)
+    }
+    val flushRunnable = remember(documentId) {
+        object : Runnable {
+            override fun run() = flushPendingShare()
+        }
+    }
 
     val bridge = remember(documentId) {
         HwpJavascriptBridge(
-            onLoaded = { count ->
+            onLoadedCallback = { count ->
                 loaded = true
                 totalPages = count
                 onPageCount(count)
             },
-            onPageChanged = { page, count ->
+            onPageChangedCallback = { page, count ->
                 lastAppliedPage = page
                 if (count > 0) totalPages = count
                 onPageChanged(page, count.coerceAtLeast(0))
             },
-            onError = { message -> renderError = message },
-            onStroke = onStroke,
-            onSharedImage = { data ->
-                // Single-page callback (kept for compatibility).
+            onErrorCallback = { message -> renderError = message },
+            onStrokeCallback = onStroke,
+            onSharedImageCallback = { data ->
+                // One PNG per call; flush shortly after the last page arrives.
                 if (data.isNotBlank()) {
-                    runCatching { onSharedImages(listOf(Base64.decode(data, Base64.DEFAULT))) }
-                }
-            },
-            onSharedImages = { list ->
-                val bytesList = list.mapNotNull { item ->
-                    if (item.isNotBlank()) runCatching { Base64.decode(item, Base64.DEFAULT) }.getOrNull() else null
-                }
-                if (bytesList.isNotEmpty()) {
-                    onSharedImages(bytesList)
-                } else {
-                    // JS canvas was tainted; fall back to capturing the WebView.
-                    val view = webView
-                    if (view != null) {
-                        val bitmap = android.graphics.Bitmap.createBitmap(
-                            view.width.coerceAtLeast(1),
-                            view.height.coerceAtLeast(1),
-                            android.graphics.Bitmap.Config.ARGB_8888,
-                        )
-                        view.draw(android.graphics.Canvas(bitmap))
-                        val stream = java.io.ByteArrayOutputStream()
-                        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
-                        onSharedImages(listOf(stream.toByteArray()))
+                    runCatching { Base64.decode(data, Base64.DEFAULT) }.getOrNull()?.let { bytes ->
+                        pendingShareImages.add(bytes)
+                        mainHandler.removeCallbacks(flushRunnable)
+                        mainHandler.postDelayed(flushRunnable, 1200L)
                     }
                 }
             },
+            onSharedPageBatchDoneCallback = {
+                mainHandler.removeCallbacks(flushRunnable)
+                mainHandler.post(flushRunnable)
+            },
+            onSharedImagesCallback = { /* legacy multi-payload path, unused */ },
         )
     }
 
@@ -127,17 +129,6 @@ fun HwpReaderView(
                     "window.setAnnotationState($annotationEnabled, '$annotationTool', '$annotationColorHex');",
                     null,
                 )
-                if (undoRequest > 0) {
-                    view.evaluateJavascript("window.undoLastAnnotation($currentPageForUndo);", null)
-                }
-                if (clearRequest > 0) {
-                    view.evaluateJavascript("window.clearPageAnnotations($currentPageForUndo);", null)
-                }
-                if (shareRequest > 0 && shareRequest != lastHandledShare) {
-                    lastHandledShare = shareRequest
-                    val pagesJson = sharePages.joinToString(",", "[", "]")
-                    view.evaluateJavascript("window.requestSharedPages($pagesJson);", null)
-                }
                 val safeRequestedPage = if (totalPages > 0) requestedPage.coerceIn(0, totalPages - 1) else requestedPage.coerceAtLeast(0)
                 if (safeRequestedPage != lastAppliedPage) {
                     lastAppliedPage = safeRequestedPage
@@ -146,6 +137,30 @@ fun HwpReaderView(
             }
         },
     )
+
+    // Undo / clear must fire once per request, not on every recomposition.
+    LaunchedEffect(undoRequest, loaded) {
+        val view = webView
+        if (view != null && loaded && undoRequest > 0) {
+            view.evaluateJavascript("window.undoLastAnnotation($currentPageForUndo);", null)
+        }
+    }
+
+    LaunchedEffect(clearRequest, loaded) {
+        val view = webView
+        if (view != null && loaded && clearRequest > 0) {
+            view.evaluateJavascript("window.clearAllAnnotations();", null)
+        }
+    }
+
+    LaunchedEffect(shareRequest, sharePages, loaded) {
+        val view = webView
+        if (view != null && loaded && shareRequest > 0) {
+            pendingShareImages.clear()
+            // Empty array → the WebView picks every page that actually has annotations.
+            view.evaluateJavascript("window.requestSharedPages([]);", null)
+        }
+    }
 
     LaunchedEffect(webView, loaded) {
         val view = webView
@@ -190,6 +205,21 @@ fun HwpReaderView(
     }
 }
 
+/** Captures the current WebView surface as PNG bytes (fallback when JS canvas is tainted). */
+@SuppressLint("WrongThread")
+private fun captureWebViewToPng(view: WebView): ByteArray {
+    val bitmap = android.graphics.Bitmap.createBitmap(
+        view.width.coerceAtLeast(1),
+        view.height.coerceAtLeast(1),
+        android.graphics.Bitmap.Config.ARGB_8888,
+    )
+    view.draw(android.graphics.Canvas(bitmap))
+    val stream = java.io.ByteArrayOutputStream()
+    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
+    bitmap.recycle()
+    return stream.toByteArray()
+}
+
 @SuppressLint("SetJavaScriptEnabled")
 private fun createHwpWebView(
     context: Context,
@@ -222,40 +252,51 @@ private fun createHwpWebView(
 }
 
 private class HwpJavascriptBridge(
-    private val onLoaded: (Int) -> Unit,
-    private val onPageChanged: (Int, Int) -> Unit,
-    private val onError: (String) -> Unit,
-    private val onStroke: (Int, String, String, String) -> Unit,
-    private val onSharedImage: (String) -> Unit,
-    private val onSharedImages: (List<String>) -> Unit,
+    // Callback properties use a distinct "Callback" suffix so they never shadow the
+    // @JavascriptInterface methods below (which would cause self-recursion).
+    private val onLoadedCallback: (Int) -> Unit,
+    private val onPageChangedCallback: (Int, Int) -> Unit,
+    private val onErrorCallback: (String) -> Unit,
+    private val onStrokeCallback: (Int, String, String, String) -> Unit,
+    private val onSharedImageCallback: (String) -> Unit,
+    private val onSharedPageBatchDoneCallback: (Int) -> Unit,
+    private val onSharedImagesCallback: (List<String>) -> Unit,
 ) {
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
     @JavascriptInterface
     fun onDocumentLoaded(pageCount: Int) {
-        android.os.Handler(android.os.Looper.getMainLooper()).post { onLoaded(pageCount.coerceAtLeast(0)) }
+        mainHandler.post { onLoadedCallback(pageCount.coerceAtLeast(0)) }
     }
 
     @JavascriptInterface
     fun onError(message: String) {
-        android.os.Handler(android.os.Looper.getMainLooper()).post { onError(message.take(500)) }
+        mainHandler.post { onErrorCallback(message.take(500)) }
     }
 
     @JavascriptInterface
     fun onPageChanged(pageIndex: Int, pageCount: Int) {
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            onPageChanged(pageIndex.coerceAtLeast(0), pageCount.coerceAtLeast(0))
+        mainHandler.post {
+            onPageChangedCallback(pageIndex.coerceAtLeast(0), pageCount.coerceAtLeast(0))
         }
     }
 
     @JavascriptInterface
     fun onStroke(pageIndex: Int, tool: String, color: String, pointsJson: String) {
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            onStroke(pageIndex.coerceAtLeast(0), tool, color, pointsJson)
+        mainHandler.post {
+            onStrokeCallback(pageIndex.coerceAtLeast(0), tool, color, pointsJson)
         }
     }
 
     @JavascriptInterface
     fun onSharedPage(base64Png: String) {
-        android.os.Handler(android.os.Looper.getMainLooper()).post { onSharedImage(base64Png) }
+        mainHandler.post { onSharedImageCallback(base64Png) }
+    }
+
+    /** Called once after every page of a share batch has been sent. */
+    @JavascriptInterface
+    fun onSharedPageBatchDone(sentCount: Int) {
+        mainHandler.post { onSharedPageBatchDoneCallback(sentCount) }
     }
 
     /** Accepts a JSON array of base64 PNG strings for multi-page sharing. */
@@ -272,7 +313,7 @@ private class HwpJavascriptBridge(
                 .map { it.trim('"') }
                 .filter { it.isNotBlank() }
         }
-        android.os.Handler(android.os.Looper.getMainLooper()).post { onSharedImages(list) }
+        mainHandler.post { onSharedImagesCallback(list) }
     }
 }
 
