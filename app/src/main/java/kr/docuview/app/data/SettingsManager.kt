@@ -11,6 +11,8 @@ data class UserSettings(
     val compactMode: Boolean = false,
     val keepScreenOn: Boolean = true,
     val themeMode: String = "SYSTEM", // "SYSTEM", "LIGHT", "DARK"
+    // true: 문서만 전체 화면으로 보기 / false: 기본 UI와 함께 문서 보기
+    val fullscreenReading: Boolean = false,
 )
 
 class SettingsManager(context: Context) {
@@ -26,6 +28,7 @@ class SettingsManager(context: Context) {
             compactMode = prefs.getBoolean(KEY_COMPACT_MODE, false),
             keepScreenOn = prefs.getBoolean(KEY_KEEP_SCREEN_ON, true),
             themeMode = prefs.getString(KEY_THEME_MODE, "SYSTEM") ?: "SYSTEM",
+            fullscreenReading = prefs.getBoolean(KEY_FULLSCREEN_READING, false),
         )
     }
 
@@ -50,10 +53,16 @@ class SettingsManager(context: Context) {
         _settings.value = _settings.value.copy(themeMode = mode)
     }
 
+    fun setFullscreenReading(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_FULLSCREEN_READING, enabled).apply()
+        _settings.value = _settings.value.copy(fullscreenReading = enabled)
+    }
+
     companion object {
         private const val KEY_RESTORE_LAST_PAGE = "restore_last_page"
         private const val KEY_COMPACT_MODE = "compact_mode"
         private const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
         private const val KEY_THEME_MODE = "theme_mode"
+        private const val KEY_FULLSCREEN_READING = "fullscreen_reading"
     }
 }

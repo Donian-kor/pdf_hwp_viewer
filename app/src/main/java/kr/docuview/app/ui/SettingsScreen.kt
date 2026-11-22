@@ -34,6 +34,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Storage
@@ -85,6 +86,8 @@ fun SettingsScreen(
     onKeepScreenOnChange: (Boolean) -> Unit = {},
     themeMode: String = "SYSTEM",
     onThemeModeChange: (String) -> Unit = {},
+    fullscreenReading: Boolean = false,
+    onFullscreenReadingChange: (Boolean) -> Unit = {},
     onClearRecentDocuments: () -> Unit = {},
     onPrivacyPolicyClick: () -> Unit = {},
 ) {
@@ -96,6 +99,7 @@ fun SettingsScreen(
     var restoreLastPageState by remember(restoreLastPage) { mutableStateOf(restoreLastPage) }
     var compactModeState by remember(compactMode) { mutableStateOf(compactMode) }
     var keepScreenOnState by remember(keepScreenOn) { mutableStateOf(keepScreenOn) }
+    var fullscreenReadingState by remember(fullscreenReading) { mutableStateOf(fullscreenReading) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showClearConfirmDialog by remember { mutableStateOf(false) }
     var showPermissionRevokeConfirm by remember { mutableStateOf(false) }
@@ -187,6 +191,23 @@ fun SettingsScreen(
                                 onCheckedChange = {
                                     compactModeState = it
                                     onCompactModeChange(it)
+                                },
+                            )
+                        },
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+
+                    SettingRow(
+                        title = "전체화면 보기",
+                        subtitle = "문서만 화면 전체에 표시 (왼쪽 중앙 버튼으로 UI 보기/숨기기 전환)",
+                        icon = Icons.Default.Fullscreen,
+                        trailing = {
+                            Switch(
+                                checked = fullscreenReadingState,
+                                onCheckedChange = {
+                                    fullscreenReadingState = it
+                                    onFullscreenReadingChange(it)
                                 },
                             )
                         },

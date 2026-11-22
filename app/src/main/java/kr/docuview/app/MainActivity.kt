@@ -1,7 +1,7 @@
 package kr.docuview.app
 
-import android.app.Activity
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -11,7 +11,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,6 +32,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemColors
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -40,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
@@ -62,6 +69,9 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private val pendingOpenUri = mutableStateOf<Uri?>(null)
+
+    /** 리더 화면에서 UI가 숨겨진 상태인지 여부. 시스템 내비게이션 바 표시를 결정한다. */
+    internal val readerChromeHidden = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -122,10 +132,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // 화면 회전·폴드 전환 후에도 시스템 바 숨김 상태를 유지한다.
+        configureSystemBars()
+    }
+
+    internal fun setReaderChromeHidden(hidden: Boolean) {
+        if (readerChromeHidden.value == hidden) return
+        readerChromeHidden.value = hidden
+        configureSystemBars()
+    }
+
     private fun configureSystemBars() {
         WindowCompat.getInsetsController(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.statusBars())
-            show(WindowInsetsCompat.Type.navigationBars())
+            // 문서만 보는 모드에서는 시스템 내비게이션 바까지 숨겨 화면 전체를 사용한다.
+            if (readerChromeHidden.value) {
+                hide(WindowInsetsCompat.Type.navigationBars())
+            } else {
+                show(WindowInsetsCompat.Type.navigationBars())
+            }
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
     }
@@ -138,7 +165,8 @@ private fun DocumentViewerApp(
     initialDocumentUri: Uri? = null,
 ) {
     val context = LocalContext.current
-    val activity = context as? Activity
+    val activity = context as? MainActivity
+    val readerChromeHidden = activity?.readerChromeHidden?.value == true
     val dao = remember(database) { database.documentDao() }
     val importer = remember(context, dao) { DocumentImporter(context.applicationContext, dao) }
     val recentDocuments by dao.observeRecent().collectAsState(initial = emptyList())
@@ -251,148 +279,219 @@ private fun DocumentViewerApp(
         }
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets.safeDrawing,
-        bottomBar = {
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 3.dp,
-            ) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 0.dp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                        .heightIn(min = 56.dp),
-                ) {
-                    val navItems = listOf(
-                        Triple("홈", Icons.Default.Home, 0),
-                        Triple("문서 찾기", Icons.Default.Add, 1),
-                        Triple("설정", Icons.Default.Settings, 2),
-                    )
+    // 리더를 벗어나면 UI 숨김 상태를 해제해 시스템 바를 원래대로 되돌린다.
+    LaunchedEffect(activeDocument) {
+        if (activeDocument == null) activity?.setReaderChromeHidden(false)
+    }
 
-                    navItems.forEach { item ->
-                        val currentActiveTab = when {
-                            activeDocument != null -> -1
-                            showSettings || selectedTab == 2 -> 2
-                            showBrowser || selectedTab == 1 -> 1
-                            else -> 0
-                        }
-                        val isSelected = currentActiveTab == item.third
-                        NavigationBarItem(
-                            selected = isSelected,
-                            onClick = {
-                                when (item.third) {
-                                    0 -> openHome()
-                                    1 -> openBrowser()
-                                    2 -> openSettingsScreen()
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // 600dp 이상(태블릿·폴더블 펼침·스마트폰 가로)에서는 하단 바 대신 좌측 레일을 사용한다.
+        val useNavigationRail = maxWidth >= 600.dp
+        val showNavigation = activeDocument == null || !readerChromeHidden
+        val activeNavIndex = when {
+            activeDocument != null -> -1
+            showSettings || selectedTab == 2 -> 2
+            showBrowser || selectedTab == 1 -> 1
+            else -> 0
+        }
+        val navItems = listOf(
+            AppNavItem("홈", "홈", Icons.Default.Home, 0),
+            AppNavItem("문서 찾기", "문서", Icons.Default.Add, 1),
+            AppNavItem("설정", "설정", Icons.Default.Settings, 2),
+        )
+        val onNavigate: (Int) -> Unit = { index ->
+            when (index) {
+                0 -> openHome()
+                1 -> openBrowser()
+                2 -> openSettingsScreen()
+            }
+        }
+
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            // 문서만 보는 모드에서는 시스템 바 인셋까지 무시해 화면 끝까지 채운다.
+            contentWindowInsets = if (activeDocument != null && readerChromeHidden) {
+                WindowInsets(0, 0, 0, 0)
+            } else {
+                WindowInsets.safeDrawing
+            },
+            bottomBar = {
+                if (!useNavigationRail && showNavigation) {
+                    AppBottomNavigationBar(navItems, activeNavIndex, onNavigate)
+                }
+            },
+        ) { innerPadding ->
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    // 안쪽 화면의 Scaffold가 같은 인셋을 한 번 더 더하지 않도록 소비한다.
+                    .consumeWindowInsets(innerPadding),
+            ) {
+                if (useNavigationRail && showNavigation) {
+                    AppNavigationRail(navItems, activeNavIndex, onNavigate)
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                ) {
+                    if (showPrivacyPolicy) {
+                        PrivacyPolicyScreen(onBack = { showPrivacyPolicy = false })
+                    } else if (activeDocument != null) {
+                        ReaderScreen(
+                            document = activeDocument!!,
+                            dao = dao,
+                            onBack = { activeDocument = null },
+                            restoreLastPage = settings.restoreLastPage,
+                            compactMode = settings.compactMode,
+                            keepScreenOn = settings.keepScreenOn,
+                            fullscreenReading = settings.fullscreenReading,
+                            onChromeHiddenChange = { hidden -> activity?.setReaderChromeHidden(hidden) },
+                        )
+                    } else if (showSettings || selectedTab == 2) {
+                        SettingsScreen(
+                            onBack = { openHome() },
+                            restoreLastPage = settings.restoreLastPage,
+                            onRestoreLastPageChange = { settingsManager.setRestoreLastPage(it) },
+                            compactMode = settings.compactMode,
+                            onCompactModeChange = { settingsManager.setCompactMode(it) },
+                            keepScreenOn = settings.keepScreenOn,
+                            onKeepScreenOnChange = { settingsManager.setKeepScreenOn(it) },
+                            themeMode = settings.themeMode,
+                            onThemeModeChange = { settingsManager.setThemeMode(it) },
+                            fullscreenReading = settings.fullscreenReading,
+                            onFullscreenReadingChange = { settingsManager.setFullscreenReading(it) },
+                            onClearRecentDocuments = {
+                                scope.launch {
+                                    dao.clearRecentDocuments()
                                 }
                             },
-                            icon = {
-                                Icon(
-                                    imageVector = item.second,
-                                    contentDescription = item.first,
-                                    modifier = Modifier.size(16.dp),
-                                )
+                            onPrivacyPolicyClick = { showPrivacyPolicy = true },
+                        )
+                    } else if (showBrowser || selectedTab == 1) {
+                        FileBrowserScreen(
+                            importing = importing,
+                            initialFiles = scannedFiles,
+                            hasScanned = hasScanned,
+                            scanning = scanningFiles,
+                            onScan = startScan,
+                            onBack = { openHome() },
+                            onOpenFile = { file ->
+                                scope.launch {
+                                    importing = true
+                                    errorMessage = null
+                                    try {
+                                        activeDocument = importer.import(Uri.fromFile(file))
+                                        showBrowser = false
+                                    } catch (error: Exception) {
+                                        errorMessage = error.message ?: "파일을 가져오지 못했습니다."
+                                    } finally {
+                                        importing = false
+                                    }
+                                }
                             },
-                            label = { Text(item.first, style = MaterialTheme.typography.labelSmall) },
-                            alwaysShowLabel = true,
-                            colors = NavigationBarItemColors(
-                                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                selectedIndicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                disabledIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
-                                disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
-                            ),
-                            modifier = Modifier.height(48.dp),
+                            onFileDeleted = { file ->
+                                scope.launch {
+                                    val deletedDocuments = dao.getDocumentsByLocalPath(file.absolutePath)
+                                        .ifEmpty { dao.getDocumentsByName(file.name) }
+                                    deletedDocuments.forEach { dao.deleteDocument(it.id) }
+                                    if (activeDocument?.localPath == file.absolutePath) {
+                                        activeDocument = null
+                                    }
+                                    scannedFiles = scannedFiles.filter { it.absolutePath != file.absolutePath }
+                                    scanCache.save(scannedFiles)
+                                }
+                            },
+                        )
+                    } else {
+                        HomeScreen(
+                            documents = recentDocuments,
+                            importing = importing,
+                            errorMessage = errorMessage,
+                            onOpenPicker = { openBrowser() },
+                            onOpenDocument = { activeDocument = it },
+                            onDismissError = { errorMessage = null },
+                            compactMode = settings.compactMode,
                         )
                     }
                 }
             }
-        },
-    ) { innerPadding ->
-        Box(
+        }
+    }
+}
+
+private data class AppNavItem(
+    val label: String,
+    val shortLabel: String,
+    val icon: ImageVector,
+    val index: Int,
+)
+
+@Composable
+private fun AppBottomNavigationBar(
+    items: List<AppNavItem>,
+    activeIndex: Int,
+    onNavigate: (Int) -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 3.dp,
+    ) {
+        NavigationBar(
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 0.dp,
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+                .heightIn(min = 56.dp),
         ) {
-            if (showPrivacyPolicy) {
-                PrivacyPolicyScreen(onBack = { showPrivacyPolicy = false })
-            } else if (activeDocument != null) {
-                ReaderScreen(
-                    document = activeDocument!!,
-                    dao = dao,
-                    onBack = { activeDocument = null },
-                    restoreLastPage = settings.restoreLastPage,
-                    compactMode = settings.compactMode,
-                    keepScreenOn = settings.keepScreenOn,
-                )
-            } else if (showSettings || selectedTab == 2) {
-                SettingsScreen(
-                    onBack = { openHome() },
-                    restoreLastPage = settings.restoreLastPage,
-                    onRestoreLastPageChange = { settingsManager.setRestoreLastPage(it) },
-                    compactMode = settings.compactMode,
-                    onCompactModeChange = { settingsManager.setCompactMode(it) },
-                    keepScreenOn = settings.keepScreenOn,
-                    onKeepScreenOnChange = { settingsManager.setKeepScreenOn(it) },
-                    themeMode = settings.themeMode,
-                    onThemeModeChange = { settingsManager.setThemeMode(it) },
-                    onClearRecentDocuments = {
-                        scope.launch {
-                            dao.clearRecentDocuments()
-                        }
+            items.forEach { item ->
+                NavigationBarItem(
+                    selected = activeIndex == item.index,
+                    onClick = { onNavigate(item.index) },
+                    icon = {
+                        Icon(
+                            imageVector = item.icon,
+                            contentDescription = item.label,
+                            modifier = Modifier.size(16.dp),
+                        )
                     },
-                    onPrivacyPolicyClick = { showPrivacyPolicy = true },
+                    label = { Text(item.label, style = MaterialTheme.typography.labelSmall) },
+                    alwaysShowLabel = true,
+                    colors = NavigationBarItemColors(
+                        selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        selectedIndicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                        disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                    ),
+                    modifier = Modifier.height(48.dp),
                 )
-            } else if (showBrowser || selectedTab == 1) {
-                FileBrowserScreen(
-                    importing = importing,
-                    initialFiles = scannedFiles,
-                    hasScanned = hasScanned,
-                    scanning = scanningFiles,
-                    onScan = startScan,
-                    onBack = { openHome() },
-                    onOpenFile = { file ->
-                        scope.launch {
-                            importing = true
-                            errorMessage = null
-                            try {
-                                activeDocument = importer.import(Uri.fromFile(file))
-                                showBrowser = false
-                            } catch (error: Exception) {
-                                errorMessage = error.message ?: "파일을 가져오지 못했습니다."
-                            } finally {
-                                importing = false
-                            }
-                        }
-                    },
-                    onFileDeleted = { file ->
-                        scope.launch {
-                            val deletedDocuments = dao.getDocumentsByLocalPath(file.absolutePath)
-                                .ifEmpty { dao.getDocumentsByName(file.name) }
-                            deletedDocuments.forEach { dao.deleteDocument(it.id) }
-                            if (activeDocument?.localPath == file.absolutePath) {
-                                activeDocument = null
-                            }
-                            scannedFiles = scannedFiles.filter { it.absolutePath != file.absolutePath }
-                            scanCache.save(scannedFiles)
-                        }
-                    },
-                )
-            } else {
-                HomeScreen(
-                    documents = recentDocuments,
-                    importing = importing,
-                    errorMessage = errorMessage,
-                    onOpenPicker = { openBrowser() },
-                    onOpenDocument = { activeDocument = it },
-                    onDismissError = { errorMessage = null },
-                    compactMode = settings.compactMode,
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppNavigationRail(
+    items: List<AppNavItem>,
+    activeIndex: Int,
+    onNavigate: (Int) -> Unit,
+) {
+    Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 3.dp) {
+        NavigationRail(
+            containerColor = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxHeight(),
+        ) {
+            items.forEach { item ->
+                NavigationRailItem(
+                    selected = activeIndex == item.index,
+                    onClick = { onNavigate(item.index) },
+                    icon = { Icon(item.icon, contentDescription = item.label) },
+                    label = { Text(item.shortLabel, style = MaterialTheme.typography.labelSmall) },
                 )
             }
         }
