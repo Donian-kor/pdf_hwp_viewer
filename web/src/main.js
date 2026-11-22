@@ -113,14 +113,14 @@ function drawStrokeOnContext(ctx, stroke, width, height) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  // WebView renders at device scale (typically 2x), so halve the CSS pixel width
-  // to match the physical PDF stroke thickness.
+  // Scale stroke width with canvas size so screen and 1600px share output look identical.
+  const strokeScale = width / 800;
   if (tool === 'HIGHLIGHT') {
     ctx.globalAlpha = 0.35;
-    ctx.lineWidth = 20;
+    ctx.lineWidth = 20 * strokeScale;
   } else {
     ctx.globalAlpha = 1;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 4 * strokeScale;
   }
 
   if (tool === 'HIGHLIGHT' || tool === 'PEN') {
