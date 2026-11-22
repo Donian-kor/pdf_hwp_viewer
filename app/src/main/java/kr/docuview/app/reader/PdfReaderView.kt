@@ -241,7 +241,9 @@ private fun PdfPage(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(scrollState, enabled = zoom > 1f),
+                    // While annotating, disable horizontal panning so drags reach the
+                    // annotation canvas instead of being consumed by the scroller.
+                    .horizontalScroll(scrollState, enabled = zoom > 1f && !annotationEnabled),
                 contentAlignment = Alignment.TopCenter,
             ) {
                 Box(
@@ -255,12 +257,14 @@ private fun PdfPage(
                         contentScale = ContentScale.FillBounds,
                         modifier = Modifier
                             .fillMaxSize()
-                            .pointerInput(pageIndex) {
+                            .pointerInput(pageIndex, annotationEnabled) {
+                                if (annotationEnabled) return@pointerInput
                                 detectTapGestures(onDoubleTap = {
                                     zoom = if (zoom > 1f) 1f else 2f
                                 })
                             }
-                            .pointerInput(pageIndex) {
+                            .pointerInput(pageIndex, annotationEnabled) {
+                                if (annotationEnabled) return@pointerInput
                                 awaitPointerEventScope {
                                     while (true) {
                                         val event = awaitPointerEvent()

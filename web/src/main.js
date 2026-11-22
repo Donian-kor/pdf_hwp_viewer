@@ -217,7 +217,8 @@ function ensureAnnotationCanvas(pageElement) {
       points: a.points,
     })));
     redrawPage(stroke.pageIndex);
-    if (stroke.points.length >= 2) {
+    // Accept even a single point (a tap) so quick strokes are never dropped.
+    if (stroke.points.length >= 1) {
       try {
         globalThis.AndroidBridge?.onStroke?.(
           stroke.pageIndex,
