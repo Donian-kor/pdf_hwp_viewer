@@ -57,7 +57,9 @@ fun HwpReaderView(
     var webView by remember(documentId) { mutableStateOf<WebView?>(null) }
     var loaded by remember(documentId) { mutableStateOf(false) }
     var renderError by remember(documentId) { mutableStateOf<String?>(null) }
-    var lastAppliedPage by remember(documentId) { mutableIntStateOf(initialPage.coerceAtLeast(0)) }
+    // Tracks only pages the app explicitly asked the viewer to jump to. User scrolling
+    // must not update this, otherwise the viewer would fight the user's scroll.
+    var lastRequestedPage by remember(documentId) { mutableIntStateOf(initialPage.coerceAtLeast(0)) }
     var totalPages by remember(documentId) { mutableIntStateOf(0) }
     // Accumulates per-page PNGs while a multi-page share batch is running.
     val pendingShareImages = remember(documentId) { mutableStateListOf<ByteArray>() }
@@ -82,7 +84,6 @@ fun HwpReaderView(
                 onPageCount(count)
             },
             onPageChangedCallback = { page, count ->
-                lastAppliedPage = page
                 if (count > 0) totalPages = count
                 onPageChanged(page, count.coerceAtLeast(0))
             },
@@ -130,8 +131,8 @@ fun HwpReaderView(
                     null,
                 )
                 val safeRequestedPage = if (totalPages > 0) requestedPage.coerceIn(0, totalPages - 1) else requestedPage.coerceAtLeast(0)
-                if (safeRequestedPage != lastAppliedPage) {
-                    lastAppliedPage = safeRequestedPage
+                if (safeRequestedPage != lastRequestedPage) {
+                    lastRequestedPage = safeRequestedPage
                     view.evaluateJavascript("window.scrollToPage(${safeRequestedPage})", null)
                 }
             }
