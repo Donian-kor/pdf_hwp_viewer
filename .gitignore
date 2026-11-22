@@ -12,6 +12,7 @@
 *.apk.idsig
 *.jks
 *.keystore
+signing.properties
 
 # Design reference files
 stitch_docuview_android_reader_ui/

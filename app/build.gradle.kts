@@ -1,9 +1,25 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
 }
+
+val signingProps = Properties().apply {
+    val f = rootProject.file("signing.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+fun signingValue(propKey: String, envKey: String): String? =
+    signingProps.getProperty(propKey) ?: System.getenv(envKey)
+
+val storePath = signingValue("release.storeFile", "SIGNING_STORE_FILE")
+val storePass = signingValue("release.storePassword", "SIGNING_STORE_PASSWORD")
+val keyAliasValue = signingValue("release.keyAlias", "SIGNING_KEY_ALIAS")
+val keyPass = signingValue("release.keyPassword", "SIGNING_KEY_PASSWORD")
+val hasSigning = listOf(storePath, storePass, keyAliasValue, keyPass).all { !it.isNullOrBlank() }
 
 android {
     namespace = "kr.docuview.app"
@@ -21,6 +37,23 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    signingConfigs {
+        if (hasSigning) {
+            create("release") {
+                storeFile = rootProject.file(storePath!!)
+                storePassword = storePass
+                keyAlias = keyAliasValue
+                keyPassword = keyPass
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig = if (hasSigning) signingConfigs.getByName("release") else null
+        }
     }
 
     compileOptions {
@@ -57,6 +90,15 @@ android {
             it.name == "generateReleaseLintVitalReportModel" ||
             it.name == "lintVitalAnalyzeRelease"
     }.configureEach { dependsOn(copyPrivacyPolicy) }
+}
+
+gradle.taskGraph.whenReady {
+    val wantsRelease = allTasks.any { it.name == "assembleRelease" || it.name == "bundleRelease" }
+    if (wantsRelease && !hasSigning) {
+        throw GradleException(
+            "릴리즈 서명 정보가 없습니다. signing.properties 또는 SIGNING_* 환경 변수를 설정하세요.",
+        )
+    }
 }
 
 dependencies {
