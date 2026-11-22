@@ -45,6 +45,8 @@ import kr.docuview.app.data.AnnotationTool
  *
  * Tapping the currently selected tool again deselects it (NONE), which lets the
  * user pan/zoom the document while the toolbar stays open.
+ *
+ * Text/border colors follow the active theme: white on dark, black on light.
  */
 @Composable
 fun AnnotationToolbar(
@@ -61,7 +63,6 @@ fun AnnotationToolbar(
     val onSurface = MaterialTheme.colorScheme.onSurface
 
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        // Separate row above the toolbar: no row background, only the round button is filled.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -91,7 +92,6 @@ fun AnnotationToolbar(
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // Row 1: tools + actions
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
@@ -116,10 +116,11 @@ fun AnnotationToolbar(
                         },
                     )
                     Spacer(Modifier.width(4.dp))
-                    OutlinedButton(onClick = onUndo, border = BorderStroke(1.dp, outline)) {
+                    // 되돌리기: theme-aware text/border (white on dark, black on light)
+                    OutlinedButton(onClick = onUndo, border = BorderStroke(1.dp, onSurface)) {
                         Text(
                             "되돌리기",
-                            color = Color.White,
+                            color = onSurface,
                             style = MaterialTheme.typography.labelSmall,
                             maxLines = 1,
                             softWrap = false,
@@ -129,7 +130,6 @@ fun AnnotationToolbar(
                     OutlinedButton(
                         onClick = onClearAll,
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     ) {
                         Text(
                             "초기화",
@@ -144,7 +144,6 @@ fun AnnotationToolbar(
 
                 Spacer(Modifier.height(6.dp))
 
-                // Row 2: five colors with generous 48dp touch targets and clear spacing.
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -182,16 +181,25 @@ private fun ToolButton(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    // Animated container color + subtle scale for the selected state.
+    val selectedContainer = MaterialTheme.colorScheme.primary
+    val selectedText = MaterialTheme.colorScheme.onPrimary // white in light, dark in dark
+    val normalText = MaterialTheme.colorScheme.onSurface // dark in light, white in dark
+    val normalBorder = MaterialTheme.colorScheme.onSurface // black line in light theme
+
     val containerColor by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+        targetValue = if (selected) selectedContainer else Color.Transparent,
         animationSpec = spring(),
         label = "toolContainer",
     )
     val borderColor by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+        targetValue = if (selected) selectedContainer else normalBorder,
         animationSpec = spring(),
         label = "toolBorder",
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (selected) selectedText else normalText,
+        animationSpec = spring(),
+        label = "toolContent",
     )
     val scale by animateFloatAsState(
         targetValue = if (selected) 1.06f else 1f,
@@ -204,12 +212,12 @@ private fun ToolButton(
         border = BorderStroke(1.dp, borderColor),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = containerColor,
-            contentColor = Color.White,
+            contentColor = contentColor,
         ),
     ) {
         Text(
             label,
-            color = Color.White,
+            color = contentColor,
             style = MaterialTheme.typography.labelSmall,
             maxLines = 1,
             softWrap = false,
