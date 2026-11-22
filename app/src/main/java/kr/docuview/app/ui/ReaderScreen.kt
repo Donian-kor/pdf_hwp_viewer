@@ -18,9 +18,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -30,8 +28,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Bookmarks
-import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -55,19 +54,31 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kr.docuview.app.data.AnnotationColor
+import kr.docuview.app.data.AnnotationStroke
+import kr.docuview.app.data.AnnotationTool
 import kr.docuview.app.data.BookmarkEntity
 import kr.docuview.app.data.DocumentDao
 import kr.docuview.app.data.DocumentEntity
+import kr.docuview.app.data.PageAnnotationEntity
+import kr.docuview.app.data.decodePoints
+import kr.docuview.app.data.encodePoints
+import kr.docuview.app.reader.AnnotationRenderer
 import kr.docuview.app.reader.HwpReaderView
+import kr.docuview.app.reader.PageShareHelper
 import kr.docuview.app.reader.PdfReaderView
+import kr.docuview.app.reader.PdfSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun ReaderScreen(
@@ -80,14 +91,35 @@ fun ReaderScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val bookmarks by dao.observeBookmarks(document.id).collectAsState(initial = emptyList())
 
     val startPage = if (restoreLastPage) document.lastPage.coerceAtLeast(0) else 0
     var currentPage by remember(document.id) { mutableIntStateOf(startPage) }
     var requestedPage by remember(document.id) { mutableIntStateOf(startPage) }
     var pageCount by remember(document.id) { mutableIntStateOf(document.totalPages.coerceAtLeast(0)) }
-    var pendingPageRequest by remember(document.id) { mutableStateOf<Int?>(null) }
 
+    var annotationMode by remember(document.id) { mutableStateOf(false) }
+    var annotationTool by remember(document.id) { mutableStateOf(AnnotationTool.NONE) }
+    var annotationColor by remember(document.id) { mutableStateOf(AnnotationColor.RED) }
+    var strokes by remember(document.id) { mutableStateOf<List<AnnotationStroke>>(emptyList()) }
+    var pdfSession by remember(document.id) { mutableStateOf<PdfSession?>(null) }
+    var sharing by remember(document.id) { mutableStateOf(false) }
+
+    val annotationsByPage = remember(strokes) { strokes.groupBy { it.pageIndex } }
+    val isPdf = document.extension == "pdf"
+
+    LaunchedEffect(document.id) {
+        dao.observeAnnotations(document.id).collect { entities ->
+            strokes = entities.map { entity ->
+                AnnotationStroke(
+                    id = entity.strokeId,
+                    pageIndex = entity.pageIndex,
+                    tool = runCatching { AnnotationTool.valueOf(entity.tool) }.getOrDefault(AnnotationTool.PEN),
+                    color = runCatching { AnnotationColor.valueOf(entity.color) }.getOrDefault(AnnotationColor.RED),
+                    points = decodePoints(entity.points),
+                )
+            }
+        }
+    }
 
     LaunchedEffect(pageCount) {
         if (pageCount > 0) {
@@ -95,7 +127,6 @@ fun ReaderScreen(
             if (clamped != currentPage) {
                 currentPage = clamped
                 requestedPage = clamped
-                pendingPageRequest = null
             }
         }
     }
@@ -128,6 +159,22 @@ fun ReaderScreen(
         }
     }
 
+    fun saveStroke(stroke: AnnotationStroke) {
+        scope.launch {
+            dao.insertAnnotation(
+                PageAnnotationEntity(
+                    documentId = document.id,
+                    strokeId = stroke.id,
+                    pageIndex = stroke.pageIndex,
+                    tool = stroke.tool.name,
+                    color = stroke.color.name,
+                    points = encodePoints(stroke.points),
+                    createdAt = System.currentTimeMillis(),
+                ),
+            )
+        }
+    }
+
     val topBarPaddingVertical = if (compactMode) 4.dp else 6.dp
     val bottomBarPaddingVertical = if (compactMode) 2.dp else 4.dp
 
@@ -135,10 +182,7 @@ fun ReaderScreen(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
-            Surface(
-                color = MaterialTheme.colorScheme.background,
-                tonalElevation = 0.dp,
-            ) {
+            Surface(color = MaterialTheme.colorScheme.background, tonalElevation = 0.dp) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -158,9 +202,7 @@ fun ReaderScreen(
                             modifier = Modifier.size(20.dp),
                         )
                     }
-
                     Spacer(Modifier.width(6.dp))
-
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             document.displayName,
@@ -175,8 +217,44 @@ fun ReaderScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-
-
+                    if (isPdf) {
+                        IconButton(onClick = { annotationMode = !annotationMode }) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = if (annotationMode) "주석 닫기" else "주석 열기",
+                                tint = if (annotationMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                        IconButton(
+                            enabled = !sharing,
+                            onClick = {
+                                scope.launch {
+                                    sharing = true
+                                    try {
+                                        val session = pdfSession
+                                            ?: throw IllegalStateException("PDF를 아직 불러오지 못했습니다.")
+                                        val safePage = currentPage.coerceIn(0, (pageCount - 1).coerceAtLeast(0))
+                                        val base = withContext(Dispatchers.IO) {
+                                            session.renderPage(safePage, 1600)
+                                        }
+                                        val shared = AnnotationRenderer.renderSharedPage(
+                                            base,
+                                            strokes.filter { it.pageIndex == currentPage },
+                                        )
+                                        PageShareHelper.shareBitmap(
+                                            context,
+                                            shared,
+                                            "docuview-page-${currentPage + 1}-${System.currentTimeMillis()}.png",
+                                        )
+                                    } finally {
+                                        sharing = false
+                                    }
+                                }
+                            },
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = "주석 페이지 공유")
+                        }
+                    }
                 }
             }
         },
@@ -213,9 +291,7 @@ fun ReaderScreen(
                             modifier = Modifier.size(14.dp),
                         )
                     }
-
                     Spacer(Modifier.width(6.dp))
-
                     Button(
                         onClick = { },
                         shape = RoundedCornerShape(8.dp),
@@ -229,17 +305,12 @@ fun ReaderScreen(
                     ) {
                         Text(
                             if (pageCount > 0) "${currentPage + 1} / $pageCount" else "페이지 확인 중",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 8.sp,
-                                lineHeight = 8.sp,
-                            ),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, lineHeight = 8.sp),
                             maxLines = 1,
                             softWrap = false,
                         )
                     }
-
                     Spacer(Modifier.width(6.dp))
-
                     IconButton(
                         enabled = pageCount > 0 && currentPage < pageCount - 1,
                         onClick = {
@@ -264,22 +335,26 @@ fun ReaderScreen(
             }
         },
     ) { innerPadding ->
-        val contentModifier = Modifier.padding(innerPadding)
         Box(
-            modifier = contentModifier
+            modifier = Modifier
+                .padding(innerPadding)
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background),
         ) {
-            if (document.extension == "pdf") {
+            if (isPdf) {
                 PdfReaderView(
                     filePath = document.localPath,
                     initialPage = startPage,
                     requestedPage = currentPage,
-                    onPageChanged = { page ->
-                        currentPage = page
-                    },
+                    onPageChanged = { page -> currentPage = page },
                     onPageCount = { count -> pageCount = count },
                     modifier = Modifier.fillMaxSize(),
+                    annotationsByPage = annotationsByPage,
+                    annotationTool = annotationTool,
+                    annotationColor = annotationColor,
+                    annotationEnabled = annotationMode,
+                    onStrokeComplete = ::saveStroke,
+                    sessionRef = { pdfSession = it },
                 )
             } else {
                 HwpReaderView(
@@ -295,9 +370,30 @@ fun ReaderScreen(
                     modifier = Modifier.fillMaxSize(),
                 )
             }
+
+            if (annotationMode && isPdf) {
+                AnnotationToolbar(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(start = 8.dp, end = 8.dp, bottom = 16.dp),
+                    tool = annotationTool,
+                    color = annotationColor,
+                    onToolChange = { annotationTool = it },
+                    onColorChange = { annotationColor = it },
+                    onUndo = {
+                        val last = strokes.filter { it.pageIndex == currentPage }.maxByOrNull { it.id }
+                        if (last != null) {
+                            scope.launch { dao.deleteAnnotation(document.id, last.id) }
+                        }
+                    },
+                    onClearAll = {
+                        scope.launch { dao.clearPageAnnotations(document.id, currentPage) }
+                    },
+                    onClose = { annotationMode = false },
+                )
+            }
         }
     }
-
 
 }
 

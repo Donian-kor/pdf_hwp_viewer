@@ -38,6 +38,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import kr.docuview.app.data.AnnotationColor
+import kr.docuview.app.data.AnnotationStroke
+import kr.docuview.app.data.AnnotationTool
 import kotlin.math.hypot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -52,6 +55,12 @@ fun PdfReaderView(
     onPageChanged: (Int) -> Unit,
     onPageCount: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    annotationsByPage: Map<Int, List<AnnotationStroke>> = emptyMap(),
+    annotationTool: AnnotationTool = AnnotationTool.NONE,
+    annotationColor: AnnotationColor = AnnotationColor.RED,
+    annotationEnabled: Boolean = false,
+    onStrokeComplete: (AnnotationStroke) -> Unit = {},
+    sessionRef: (PdfSession?) -> Unit = {},
 ) {
     var session by remember(filePath) { mutableStateOf<PdfSession?>(null) }
     var error by remember(filePath) { mutableStateOf<String?>(null) }
@@ -66,10 +75,11 @@ fun PdfReaderView(
     }
 
     DisposableEffect(session) {
+        sessionRef(session)
         val activeSession = session
         onDispose {
+            sessionRef(null)
             activeSession?.let { closing ->
-                // Closing waits for any in-progress page render on the renderer lock.
                 Thread { runCatching { closing.close() } }.start()
             }
         }
@@ -86,6 +96,11 @@ fun PdfReaderView(
             requestedPage = requestedPage,
             onPageChanged = onPageChanged,
             modifier = modifier,
+            annotationsByPage = annotationsByPage,
+            annotationTool = annotationTool,
+            annotationColor = annotationColor,
+            annotationEnabled = annotationEnabled,
+            onStrokeComplete = onStrokeComplete,
         )
     }
 }
@@ -97,6 +112,11 @@ private fun PdfPages(
     requestedPage: Int,
     onPageChanged: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    annotationsByPage: Map<Int, List<AnnotationStroke>>,
+    annotationTool: AnnotationTool,
+    annotationColor: AnnotationColor,
+    annotationEnabled: Boolean,
+    onStrokeComplete: (AnnotationStroke) -> Unit,
 ) {
     val listState = rememberLazyListState()
     val pageCount = session.pageCount
@@ -144,6 +164,11 @@ private fun PdfPages(
                     session = session,
                     pageIndex = pageIndex,
                     targetWidthPx = widthPx,
+                    strokes = annotationsByPage[pageIndex].orEmpty(),
+                    annotationTool = annotationTool,
+                    annotationColor = annotationColor,
+                    annotationEnabled = annotationEnabled,
+                    onStrokeComplete = onStrokeComplete,
                 )
             }
         }
@@ -155,6 +180,11 @@ private fun PdfPage(
     session: PdfSession,
     pageIndex: Int,
     targetWidthPx: Int,
+    strokes: List<AnnotationStroke>,
+    annotationTool: AnnotationTool,
+    annotationColor: AnnotationColor,
+    annotationEnabled: Boolean,
+    onStrokeComplete: (AnnotationStroke) -> Unit,
 ) {
     var bitmap by remember(session, pageIndex, targetWidthPx) { mutableStateOf<android.graphics.Bitmap?>(null) }
     var zoom by remember(session, pageIndex) { mutableFloatStateOf(1f) }
@@ -198,7 +228,6 @@ private fun PdfPage(
             }
         } else {
             val density = LocalDensity.current
-            // 확대 배율을 레이아웃 크기에 반영해야 가로/세로 스크롤 영역이 생긴다.
             val imageWidth = (image.width / density.density).dp
             val imageHeight = (image.height / density.density).dp
             val scrollState = rememberScrollState()
@@ -215,42 +244,57 @@ private fun PdfPage(
                     .horizontalScroll(scrollState, enabled = zoom > 1f),
                 contentAlignment = Alignment.TopCenter,
             ) {
-                Image(
-                    bitmap = image.asImageBitmap(),
-                    contentDescription = "PDF ${pageIndex + 1}페이지",
-                    contentScale = ContentScale.FillBounds,
+                Box(
                     modifier = Modifier
                         .width(imageWidth * zoom)
-                        .height(imageHeight * zoom)
-                        .pointerInput(pageIndex) {
-                            detectTapGestures(onDoubleTap = {
-                                zoom = if (zoom > 1f) 1f else 2f
-                            })
-                        }
-                        .pointerInput(pageIndex) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    val changes = event.changes
-                                    if (changes.size >= 2) {
-                                        val d = changes[0].position - changes[1].position
-                                        val dist = hypot(d.x, d.y)
-                                        if (!isPinching) {
-                                            isPinching = true
-                                            initialDistance = dist
-                                            initialZoom = zoom
-                                        } else if (initialDistance > 0f) {
-                                            zoom = (initialZoom * (dist / initialDistance)).coerceIn(1f, 4f)
+                        .height(imageHeight * zoom),
+                ) {
+                    Image(
+                        bitmap = image.asImageBitmap(),
+                        contentDescription = "PDF ${pageIndex + 1}페이지",
+                        contentScale = ContentScale.FillBounds,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(pageIndex) {
+                                detectTapGestures(onDoubleTap = {
+                                    zoom = if (zoom > 1f) 1f else 2f
+                                })
+                            }
+                            .pointerInput(pageIndex) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        val changes = event.changes
+                                        if (changes.size >= 2) {
+                                            val d = changes[0].position - changes[1].position
+                                            val dist = hypot(d.x, d.y)
+                                            if (!isPinching) {
+                                                isPinching = true
+                                                initialDistance = dist
+                                                initialZoom = zoom
+                                            } else if (initialDistance > 0f) {
+                                                zoom = (initialZoom * (dist / initialDistance)).coerceIn(1f, 4f)
+                                            }
+                                            changes.forEach { it.consume() }
+                                        } else if (isPinching) {
+                                            isPinching = false
+                                            initialDistance = 0f
                                         }
-                                        changes.forEach { it.consume() }
-                                    } else if (isPinching) {
-                                        isPinching = false
-                                        initialDistance = 0f
                                     }
                                 }
-                            }
+                            },
+                    )
+                    PdfAnnotationCanvas(
+                        strokes = strokes,
+                        tool = annotationTool,
+                        annotationColor = annotationColor,
+                        enabled = annotationEnabled,
+                        modifier = Modifier.fillMaxSize(),
+                        onStrokeComplete = { stroke ->
+                            onStrokeComplete(stroke.copy(pageIndex = pageIndex))
                         },
-                )
+                    )
+                }
             }
         }
     }

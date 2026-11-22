@@ -44,6 +44,21 @@ interface DocumentDao {
     @Query("DELETE FROM bookmarks WHERE documentId = :documentId AND pageIndex = :pageIndex")
     suspend fun deleteBookmark(documentId: String, pageIndex: Int)
 
+    @Query("SELECT * FROM page_annotations WHERE documentId = :documentId AND pageIndex = :pageIndex ORDER BY createdAt ASC")
+    suspend fun getAnnotations(documentId: String, pageIndex: Int): List<PageAnnotationEntity>
+
+    @Query("SELECT * FROM page_annotations WHERE documentId = :documentId ORDER BY pageIndex ASC, createdAt ASC")
+    fun observeAnnotations(documentId: String): Flow<List<PageAnnotationEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAnnotation(annotation: PageAnnotationEntity)
+
+    @Query("DELETE FROM page_annotations WHERE documentId = :documentId AND strokeId = :strokeId")
+    suspend fun deleteAnnotation(documentId: String, strokeId: String)
+
+    @Query("DELETE FROM page_annotations WHERE documentId = :documentId AND pageIndex = :pageIndex")
+    suspend fun clearPageAnnotations(documentId: String, pageIndex: Int)
+
     @Query("DELETE FROM documents WHERE id = :id")
     suspend fun deleteDocument(id: String)
 

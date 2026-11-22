@@ -6,8 +6,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [DocumentEntity::class, BookmarkEntity::class],
-    version = 1,
+    entities = [DocumentEntity::class, BookmarkEntity::class, PageAnnotationEntity::class],
+    version = 2,
     exportSchema = true,
 )
 abstract class DocumentDatabase : RoomDatabase() {
@@ -23,7 +23,7 @@ abstract class DocumentDatabase : RoomDatabase() {
                     context.applicationContext,
                     DocumentDatabase::class.java,
                     "docuview.db",
-                ).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2).build().also { instance = it }
             }
     }
 }
