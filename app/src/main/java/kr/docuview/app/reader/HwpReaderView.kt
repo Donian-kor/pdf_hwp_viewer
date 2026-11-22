@@ -49,7 +49,8 @@ fun HwpReaderView(
     undoRequest: Int = 0,
     clearRequest: Int = 0,
     shareRequest: Int = 0,
-    onSharedImage: (ByteArray) -> Unit = {},
+    sharePages: List<Int> = emptyList(),
+    onSharedImages: (List<ByteArray>) -> Unit = {},
 ) {
     var webView by remember(documentId) { mutableStateOf<WebView?>(null) }
     var loaded by remember(documentId) { mutableStateOf(false) }
@@ -73,8 +74,17 @@ fun HwpReaderView(
             onError = { message -> renderError = message },
             onStroke = onStroke,
             onSharedImage = { data ->
+                // Single-page callback (kept for compatibility).
                 if (data.isNotBlank()) {
-                    runCatching { onSharedImage(Base64.decode(data, Base64.DEFAULT)) }
+                    runCatching { onSharedImages(listOf(Base64.decode(data, Base64.DEFAULT))) }
+                }
+            },
+            onSharedImages = { list ->
+                val bytesList = list.mapNotNull { item ->
+                    if (item.isNotBlank()) runCatching { Base64.decode(item, Base64.DEFAULT) }.getOrNull() else null
+                }
+                if (bytesList.isNotEmpty()) {
+                    onSharedImages(bytesList)
                 } else {
                     // JS canvas was tainted; fall back to capturing the WebView.
                     val view = webView
@@ -87,7 +97,7 @@ fun HwpReaderView(
                         view.draw(android.graphics.Canvas(bitmap))
                         val stream = java.io.ByteArrayOutputStream()
                         bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
-                        onSharedImage(stream.toByteArray())
+                        onSharedImages(listOf(stream.toByteArray()))
                     }
                 }
             },
@@ -125,7 +135,8 @@ fun HwpReaderView(
                 }
                 if (shareRequest > 0 && shareRequest != lastHandledShare) {
                     lastHandledShare = shareRequest
-                    view.evaluateJavascript("window.requestSharedPage($currentPageForUndo);", null)
+                    val pagesJson = sharePages.joinToString(",", "[", "]")
+                    view.evaluateJavascript("window.requestSharedPages($pagesJson);", null)
                 }
                 val safeRequestedPage = if (totalPages > 0) requestedPage.coerceIn(0, totalPages - 1) else requestedPage.coerceAtLeast(0)
                 if (safeRequestedPage != lastAppliedPage) {
@@ -216,6 +227,7 @@ private class HwpJavascriptBridge(
     private val onError: (String) -> Unit,
     private val onStroke: (Int, String, String, String) -> Unit,
     private val onSharedImage: (String) -> Unit,
+    private val onSharedImages: (List<String>) -> Unit,
 ) {
     @JavascriptInterface
     fun onDocumentLoaded(pageCount: Int) {
@@ -244,6 +256,15 @@ private class HwpJavascriptBridge(
     @JavascriptInterface
     fun onSharedPage(base64Png: String) {
         android.os.Handler(android.os.Looper.getMainLooper()).post { onSharedImage(base64Png) }
+    }
+
+    /** Accepts a JSON array of base64 PNG strings for multi-page sharing. */
+    @JavascriptInterface
+    fun onSharedPages(base64ListJson: String) {
+        val list = runCatching {
+            base64ListJson.trim('[', ']').split(',').map { it.trim('"') }.filter { it.isNotBlank() }
+        }.getOrDefault(emptyList())
+        android.os.Handler(android.os.Looper.getMainLooper()).post { onSharedImages(list) }
     }
 }
 

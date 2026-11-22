@@ -107,6 +107,7 @@ fun ReaderScreen(
     var hwpUndoRequest by remember(document.id) { mutableIntStateOf(0) }
     var hwpClearRequest by remember(document.id) { mutableIntStateOf(0) }
     var hwpShareRequest by remember(document.id) { mutableIntStateOf(0) }
+    var hwpSharePages by remember(document.id) { mutableStateOf<List<Int>>(emptyList()) }
 
     val annotationsByPage = remember(strokes) { strokes.groupBy { it.pageIndex } }
     val isPdf = document.extension == "pdf"
@@ -233,7 +234,9 @@ fun ReaderScreen(
                             enabled = !sharing,
                             onClick = {
                                 if (!isPdf) {
-                                    // HWP: WebView renders the annotated page and sends PNG bytes back.
+                                    // HWP: share the current page plus every annotated page.
+                                    val annotatedPages = strokes.map { it.pageIndex }.distinct().sorted()
+                                    hwpSharePages = (annotatedPages + currentPage).distinct().sorted()
                                     hwpShareRequest++
                                     return@IconButton
                                 }
@@ -242,18 +245,22 @@ fun ReaderScreen(
                                     try {
                                         val session = pdfSession
                                             ?: throw IllegalStateException("PDF를 아직 불러오지 못했습니다.")
-                                        val safePage = currentPage.coerceIn(0, (pageCount - 1).coerceAtLeast(0))
-                                        val base = withContext(Dispatchers.IO) {
-                                            session.renderPage(safePage, 1600)
+                                        // Share the current page plus every other page that has annotations.
+                                        val annotatedPages = strokes.map { it.pageIndex }.distinct().sorted()
+                                        val pagesToShare = (annotatedPages + currentPage).distinct().sorted()
+                                        val bitmaps = withContext(Dispatchers.IO) {
+                                            pagesToShare.map { safePage ->
+                                                val base = session.renderPage(safePage, 1600)
+                                                AnnotationRenderer.renderSharedPage(
+                                                    base,
+                                                    strokes.filter { it.pageIndex == safePage },
+                                                )
+                                            }
                                         }
-                                        val shared = AnnotationRenderer.renderSharedPage(
-                                            base,
-                                            strokes.filter { it.pageIndex == currentPage },
-                                        )
-                                        PageShareHelper.shareBitmap(
+                                        PageShareHelper.shareBitmaps(
                                             context,
-                                            shared,
-                                            "docuview-page-${currentPage + 1}-${System.currentTimeMillis()}.png",
+                                            bitmaps,
+                                            "docuview-annotated-${System.currentTimeMillis()}",
                                         )
                                     } finally {
                                         sharing = false
@@ -407,13 +414,16 @@ fun ReaderScreen(
                     undoRequest = hwpUndoRequest,
                     clearRequest = hwpClearRequest,
                     shareRequest = hwpShareRequest,
-                    onSharedImage = { bytes ->
-                        val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                        if (bitmap != null) {
-                            PageShareHelper.shareBitmap(
+                    sharePages = hwpSharePages,
+                    onSharedImages = { bytesList ->
+                        val bitmaps = bytesList.mapNotNull { bytes ->
+                            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        }
+                        if (bitmaps.isNotEmpty()) {
+                            PageShareHelper.shareBitmaps(
                                 context,
-                                bitmap,
-                                "docuview-hwp-page-${currentPage + 1}-${System.currentTimeMillis()}.png",
+                                bitmaps,
+                                "docuview-hwp-annotated-${System.currentTimeMillis()}",
                             )
                         }
                     },
