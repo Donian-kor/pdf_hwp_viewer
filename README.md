@@ -1,61 +1,77 @@
-# 문서뷰어 (DocuView)
+# DocuView (문서뷰어)
 
-Android PDF / HWP / HWPX 읽기 전용 통합 뷰어 프로젝트입니다. 앱은 최근 문서 목록, 문서 탐색, 외부 파일 열기, PDF/HWP 뷰어, 파일 관리 UX를 함께 제공합니다.
+Android용 PDF / HWP / HWPX 통합 문서 뷰어입니다. 최근 문서 목록, 파일 탐색, 외부 파일 열기, 독자 모드, 북마크, 주석(자유 그리기·형광펜) 및 페이지 공유 기능을 제공합니다.
 
-## 버전
+## 최신 버전
 
-- 현재 버전: **1.3.0** (`versionCode = 4`)
-- 1.3.0 변경 사항
-  - HWP 주석이 Room DB에 저장되도록 수정 (앱을 다시 열어도 유지)
-  - HWP 주석 페이지 공유 수정: 주석이 있는 **모든 페이지**를 각각 PNG로 만들어 한 번에 공유
-  - 페이지별로 나누어 전송해 Binder 전송 한도(약 1MB) 초과로 공유가 누락되던 문제 해결
-  - WebView 브리지 콜백 이름 충돌(자기 재귀)로 주석 저장이 누락되던 버그 수정
-  - 좁은 화면에서 주석 툴바가 아이콘 전용으로 전환되는 반응형 UI 적용
-- 1.2.0 변경 사항
-  - PDF·HWP·HWPX 문서 위에 **주석(자유 그리기·형광펜, 5색: 빨·주·노·초·파)** 작성
-  - 주석은 Room DB에 저장되며, **되돌리기(직전 작업 취소)** / **초기화(현재 페이지 전체 삭제)** 지원
-  - 주석이 포함된 **현재 페이지를 PNG 이미지로 생성해 Android 공유 시트(카카오톡·메일·메시지 등)로 공유**
-  - 주석 도구 재클릭 시 임시 해제로 화면 이동/확대 가능
-  - 라이트/다크 테마 대응 주석 툴바, 색상·도구 선택 애니메이션
-- 1.1.0 변경 사항
-  - PDF 확대 상태에서 좌우 스크롤(패닝) 지원
-  - 문서 찾기 결과를 `SharedPreferences`에 캐시해 재실행 시 즉시 표시하고, 프로세스 시작 후 첫 진입 시 한 번 자동 재스캔
-  - 문서 찾기에서 삭제한 파일이 홈 최근 목록과 스캔 캐시에서도 제거되도록 연동
-  - 기기 기본 하단 네비게이션바를 항상 표시
-  - HWP 대용량 문서 로딩 개선: DOM 생성/옵저버 등록 청크 처리, 페이지 위치 조회 최적화, 렌더 결과 LRU 캐시
-  - 설정 화면 앱 정보 카드의 원형 이미지를 앱 아이콘으로 변경
+**1.4.0** (`versionCode = 5`)
 
-## 구현된 범위
+---
 
-- PDF 열람: Android `PdfRenderer`로 페이지 단위 렌더링, 세로 스크롤, 핀치 확대, 더블 탭 확대
-- HWP / HWPX 열람: MIT 라이선스 `@rhwp/core` WebAssembly 렌더러를 Android WebView에 로컬 내장
-- 스크롤/페이지 이동 시 현재 페이지 표기와 페이지 위치 동기화
-- Android 시스템 파일 선택기로 문서 가져오기
-- 가져온 원본 사본을 앱 내부 저장소에 보관
-- 최근 문서 목록, 마지막 페이지 복원
-- 문서별 페이지 북마크 추가 / 삭제 / 이동
-- Room 데이터베이스에 문서 메타데이터와 북마크 저장
-- 문서 찾기 화면에서 길게 누르기 메뉴로 열기 / 삭제 동작 지원
-- PDF·HWP 문서 위 주석(자유 그리기·형광펜) 및 5색 팔레트, 되돌리기·초기화
-- 주석이 포함된 페이지 PNG 생성 및 기기 내 앱으로 공유(카카오톡·메일·메시지 등)
-- 주석이 있는 **여러 페이지를 한 번에** 각각 이미지로 공유(`ACTION_SEND_MULTIPLE`)
-- PDF·HWP 모두 주석이 DB에 저장되어 재실행 후에도 유지
-- 삭제 확인 다이얼로그에서 경고 문구와 경고 색상을 표시해 실수 삭제 방지
-- 다른 앱에서 PDF/HWP/HWPX 파일을 선택하면 앱으로 바로 열리도록 외부 열기 연동
-- 앱 자체 인터넷 권한 없음. WebView는 패키지 내부 리소스와 선택한 문서만 제공
+## 주요 기능
 
-## 기술 구성
+### 문서 열람
+- **PDF**: Android `PdfRenderer` 기반 페이지 렌더링, 세로 스크롤, 핀치 줌, 더블탭 확대
+- **HWP/HWPX**: `@rhwp/core` WebAssembly 렌더러를 Android WebView에 내장
+- 페이지 동기화: 스크롤 시 현재 페이지 자동 추적 및 표시
+- 마지막 읽은 페이지 자동 복원
 
-- Android: Kotlin, Jetpack Compose, minSdk 28 (Android 9)
-- Database: Room 2.8.5
-- PDF: Android 플랫폼 `PdfRenderer`
-- HWP/HWPX: `@rhwp/core` 0.8.7 (MIT) + WebAssembly + WebView
-- HWP 웹 리소스 빌드: Node.js 20.19+ 또는 22.12+, npm, Vite 7
-- Android build: JDK 17, Android SDK 36, Android Gradle Plugin 8.13.2, Gradle 8.13
+### 주석 (Annotation)
+- **도구**: 자유 그리기(PEN), 형광펜(HIGHLIGHT)
+- **5가지 색상**: 빨강, 주황, 노랑, 초록, 파랑
+- **저장**: Room DB에 자동 저장되어 앱 재실행 후에도 유지
+- **되돌리기**: 현재 페이지의 마지막 주석을 삭제
+- **초기화**: 문서 전체의 모든 주석을 한 번에 삭제
+- **공유**: 주석이 포함된 페이지를 PNG 이미지로 생성하여 Android 공유 시트(카카오톡, 메일, 메시지 등)로 전송
+  - 주석이 있는 **모든 페이지**를 각각 PNG로 만들어 한 번에 공유 (`ACTION_SEND_MULTIPLE`)
 
-## 먼저 HWP 렌더러 리소스 만들기
+### 문서 관리
+- Android 시스템 파일 선택기(`ACTION_OPEN_DOCUMENT`)로 가져오기
+- 원본 파일 사본을 앱 내부 저장소(`filesDir/documents/`)에 보관
+- SHA-256 해시 기반 중복 제거
+- 파일 크기 제한:
+  - PDF: 최대 256 MiB
+  - HWP/HWPX: 최대 64 MiB
+- 최근 문서 목록 및 문서 찾기 (검색어 자동완성, 캐싱)
+- 문서별 북마크 (페이지 추가/삭제/이동)
+- 외부 앱에서 PDF/HWP/HWPX 파일을 열 때 DocuView로 연결
 
-프로젝트 루트에서 다음 명령을 실행합니다.
+### 보안 및 프라이버시
+- **인터넷 권한 없음**: WebView는 로컬 문서와 앱 내부 리소스만 로드
+- WebView 새로고침·외부 링크 차단으로 보안 강화
+- 앱 내부 개인정보처리방침 화면 제공
+
+### UI/UX
+- Jetpack Compose 기반 Material 3 디자인
+- 라이트/다크 테마 지원
+- 반응형 레이아웃 (좁은 화면에서 주석 툴바가 아이콘 모드로 전환)
+- 삭제 확인 다이얼로그에 경고 색상 및 명확한 안내
+- 시스템 하단 네비게이션바 항상 표시
+
+---
+
+## 기술 스택
+
+| 구분 | 기술 |
+|------|------|
+| **언어** | Kotlin |
+| **UI** | Jetpack Compose, Material 3 |
+| **최소 SDK** | 28 (Android 9) |
+| **타겟 SDK** | 36 |
+| **컴파일 SDK** | 37 |
+| **DB** | Room 2.8.5 |
+| **PDF** | Android `PdfRenderer` |
+| **HWP/HWPX** | `@rhwp/core` 0.8.7 (MIT) + WebAssembly + WebView |
+| **빌드 도구** | JDK 17, Android Gradle Plugin 8.13.2, Gradle 8.13 |
+| **웹 빌드** | Node.js 20.19+ 또는 22.12+, npm, Vite 7 |
+
+---
+
+## 시작하기
+
+### 1. HWP/HWPX 웹 리소스 빌드 (필수)
+
+HWP 뷰어를 사용하려면 먼저 WebView용 JavaScript/WASM 번들을 빌드해야 합니다.
 
 ```bash
 cd web
@@ -63,100 +79,120 @@ npm install
 npm run build
 ```
 
-빌드 결과는 자동으로 다음 폴더에 생성됩니다.
+빌드 결과가 자동으로 `app/src/main/assets/hwpviewer/`에 생성됩니다.
 
-```text
-app/src/main/assets/hwpviewer/
+> **주의**: 이 단계를 건너뛰면 HWP/HWPX 뷰어가 동작하지 않습니다. PDF 뷰어와 문서 관리 기능은 별도로 사용 가능합니다.
+
+### 2. Android 앱 빌드
+
+#### Android Studio 사용
+1. Android Studio 최신 버전 설치 (JDK 17, Android SDK 37 포함)
+2. 프로젝트 루트 폴더를 엽니다
+3. Gradle 동기화 완료 후 `app` 모듈 선택
+4. Android 9(API 28) 이상 기기 또는 에뮬레이터에서 실행
+
+#### 커맨드라인 사용
+```bash
+./gradlew.bat assembleDebug
 ```
 
-이 과정은 개발/빌드 시점에만 인터넷 연결이 필요합니다. 설치된 앱은 WASM, JavaScript, CSS를 APK 안에서 읽고 문서를 앱 내부에서 처리합니다.
+APK 생성 위치: `app/build/outputs/apk/debug/app-debug.apk`
 
-> `npm install`을 하지 않고 Android 앱만 빌드하면 HWP/HWPX 렌더링 자산이 없으므로 HWP 뷰어는 동작하지 않습니다. PDF 뷰어와 문서 관리 기능은 별도로 사용할 수 있습니다.
+---
 
-## Android Studio에서 실행
+## 프로젝트 구조
 
-1. Android Studio 최신 버전을 설치하고 JDK 17 및 Android SDK Platform 36을 설치합니다.
-2. `web` 폴더에서 HWP 리소스 빌드를 완료합니다.
-3. Android Studio에서 이 프로젝트의 루트 폴더를 엽니다.
-4. Gradle 동기화가 끝나면 `app` 구성을 선택합니다.
-5. Android 9(API 28) 이상 기기 또는 에뮬레이터에서 실행합니다.
+```
+pdf_hwp_viewer/
+├── app/                          # Android 앱 모듈
+│   ├── src/main/java/kr/docuview/app/
+│   │   ├── MainActivity.kt       # 앱 진입점, 탐색
+│   │   ├── data/                 # Room DB, 설정, 데이터 모델
+│   │   ├── importer/             # 파일 가져오기, 스캔, 캐싱
+│   │   ├── reader/               # PDF/HWP 뷰어, 주석 렌더링
+│   │   └── ui/                   # Compose 화면, 테마, 툴바
+│   ├── src/main/assets/
+│   │   └── hwpviewer/            # WebView용 HWP 렌더러 (빌드 생성물)
+│   └── build.gradle.kts          # Android 모듈 설정
+├── web/                          # HWP WebView 렌더러 소스
+│   ├── src/main.js               # HWP 뷰어 JavaScript
+│   ├── package.json              # @rhwp/core, Vite 의존성
+│   └── vite.config.js
+├── build.gradle.kts              # 루트 Gradle 설정
+├── settings.gradle.kts
+├── AGENTS.md                     # AI 에이전트용 프로젝트 가이드
+└── README.md
 
-## 파일 가져오기 / 저장 방식
+```
 
-- 시스템 `ACTION_OPEN_DOCUMENT` 파일 선택기를 사용합니다.
-- 선택한 파일은 `filesDir/documents/`에 복사되므로 원본 파일을 수정하지 않습니다.
-- SHA-256 해시로 같은 내용의 파일을 중복 보관하지 않습니다.
-- PDF 최대 파일 크기: 256 MiB
-- HWP/HWPX 최대 파일 크기: 64 MiB (WASM 메모리 사용량 보호를 위한 초기 제한)
-- HWP/HWPX의 지원 범위는 rhwp가 처리할 수 있는 HWP 5.0 바이너리 및 HWPX 문서입니다. 구형 HWP 3.x, 암호화/손상 문서, 특수 글꼴이나 복잡한 개체는 별도 호환성 테스트가 필요합니다.
+---
 
-## 데이터 위치
+## 데이터 저장
 
-- 문서 사본: 앱 내부 `filesDir/documents/`
-- DB: `docuview.db`
-- 북마크 페이지는 0부터 시작하는 내부 인덱스로 저장하고 화면에는 1부터 표시합니다.
+| 데이터 | 위치 | 비고 |
+|--------|------|------|
+| 문서 사본 | `filesDir/documents/` | 원본 파일의 SHA-256 해시 기반 중복 제거 |
+| Room DB | `filesDir/docuview.db` | 문서 메타데이터, 북마크, 주석 |
+| 설정 | `SharedPreferences` | 테마, 뷰어 설정 |
 
-앱을 삭제하면 앱 내부 문서 사본과 DB도 함께 삭제됩니다. 원본은 그대로 유지됩니다.
+앱 삭제 시 내부 문서 사본과 DB가 함께 삭제됩니다. 원본 파일은 변경되지 않습니다.
+
+---
+
+## 파일 형식 제한 및 지원 범위
+
+### PDF
+- Android `PdfRenderer`로 렌더링
+- 암호 입력 UI는 현재 미구현
+
+### HWP/HWPX
+- **지원**: HWP 5.0 바이너리, HWPX (rhwp가 처리 가능한 범위)
+- **제한**: 64 MiB (WASM 메모리 보호)
+- **참고**: 구형 HWP 3.x, 암호화된 문서, 복잡한 개체/글꼴은 별도 호환성 검증 필요
+- **출력 차이**: 한컴오피스와 픽셀 단위로 동일한 출력을 보장하지 않습니다
+
+---
 
 ## 테스트
 
 ```bash
-cd web
-npm install
-npm run build
-```
+# 단위 테스트
+./gradlew test
 
-그다음 Android Gradle로 빌드합니다.
-
-```bash
+# 빌드 검증
 ./gradlew.bat assembleDebug
 ```
 
-또는 `./gradlew test`로 로컬 테스트를 실행할 수 있습니다.
+---
 
-## 제한 사항
+## 라이선스
 
-- 읽기 전용: 문서 원본 편집, PDF 변환은 구현하지 않았습니다. 주석은 원문에 병합되지 않고 기기 내에만 저장됩니다.
-- PDF 암호 입력 UI는 아직 구현하지 않았습니다.
-- PDF는 Android 기본 렌더러를 사용하며 기기별 Android PDF 구현 차이가 있을 수 있습니다.
-- HWP 렌더링은 rhwp 오픈소스 엔진의 지원 범위와 브라우저 폰트에 영향을 받습니다. 한컴 오피스와 픽셀 단위로 동일한 출력은 보장하지 않습니다.
-- HWP 문서 데이터는 파싱을 위해 WebAssembly 메모리에 로드됩니다. 64 MiB 제한은 완전한 저메모리 스트리밍을 의미하지 않습니다.
+앱 소스 코드 및 제3자 구성요소 라이선스는 [LICENSES.md](LICENSES.md)를 참고하세요.
 
-## License
+주요 오픈소스:
+- `@rhwp/core` (MIT) - HWP/HWPX 파싱 및 렌더링
+- AndroidX, Jetpack Compose (Apache 2.0)
 
-앱 소스와 제3자 구성요소의 라이선스 개요는 [LICENSES.md](LICENSES.md)를 참고하세요.
+---
 
-## 현재 상태(프로젝트 실제 기준)
+## 개발 참고사항
 
-- 이 프로젝트는 실제 Android 소스 프로젝트로 동작합니다.
-- WebView 기반 HWP 렌더러 빌드는 `web` 폴더에서 별도로 수행해야 합니다.
-- `npm run build`를 실행하면 `app/src/main/assets/hwpviewer` 번들이 생성되고, Android 앱에서 HWP 문서 렌더링이 활성화됩니다.
-- 문서 찾기 화면은 길게 누르기 메뉴를 통해 열기와 삭제를 제공하며, 삭제 결과는 홈 목록과 스캔 캐시에 즉시 반영됩니다.
-- 문서 찾기 결과는 앱 재실행 후에도 캐시에서 즉시 표시되고, 첫 진입 시 한 번 최신 상태로 재스캔됩니다.
-- 삭제 확인 다이얼로그는 경고 문구를 강조하고 실수 삭제를 막는 UX로 구성되어 있습니다.
-- 기기 기본 하단 네비게이션바는 항상 표시됩니다.
-- 다른 앱에서 PDF/HWP/HWPX 파일을 열면 앱으로 바로 연결됩니다.
-- `./gradlew.bat assembleDebug` 빌드는 성공적으로 검증되었습니다.
+### AI 에이전트 협업
+이 프로젝트는 AI 에이전트와의 협업을 고려한 구조를 가지고 있습니다:
+- [AGENTS.md](AGENTS.md)에 프로젝트 아키텍처, 규칙, 금지 사항 상세 기술
+- 변경 사항이 HWP 렌더링에 영향을 주면 `HwpReaderView.kt`와 `web/src/main.js`를 함께 확인
+- `DocumentImporter.kt`를 우회하지 않고 모든 파일 가져오기 처리
 
-## 빠른 실행 절차
+### 빌드 검증 이력
+- `cd web && npm install && npm run build` ✅
+- `./gradlew.bat assembleDebug` ✅ (`BUILD SUCCESSFUL`)
 
-```bash
-cd web
-npm install
-npm run build
-```
+---
 
-그다음 Android Studio 또는 Gradle로 앱을 실행합니다.
+## 문의 및 피드백
 
-```bash
-./gradlew.bat assembleDebug
-```
+프로젝트 이슈는 GitHub Issues에 등록해 주세요.
 
-## 빌드 검증
+---
 
-현재 이 환경에서 아래를 실제로 확인했습니다.
-
-- `cd web && npm install && npm run build` → 성공
-- `./gradlew.bat assembleDebug` → 성공 (`BUILD SUCCESSFUL`)
-
-이 정보는 README에 반영해 두어, 이후 작업자가 바로 동일한 절차로 검증할 수 있게 했습니다.
+**마지막 업데이트**: 2026년 1월

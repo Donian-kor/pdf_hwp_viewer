@@ -233,6 +233,14 @@ function ensureAnnotationCanvas(pageElement) {
   canvas.addEventListener('pointercancel', finishStroke);
   canvas.addEventListener('pointerleave', (event) => { if (activeStroke) finishStroke(event); });
 
+  // A canvas created before the page image is laid out has zero size, so previously
+  // saved strokes would be invisible until something forced a redraw.
+  if (typeof ResizeObserver !== 'undefined') {
+    const observer = new ResizeObserver(() => resizeAnnotationCanvas(pageElement));
+    observer.observe(pageElement);
+    canvas.__resizeObserver = observer;
+  }
+
   resizeAnnotationCanvas(pageElement);
   return canvas;
 }
@@ -465,6 +473,12 @@ async function buildPagePlaceholders(pageCount) {
   window.addEventListener('resize', schedulePageSync);
   window.addEventListener('resize', applyAnnotationState);
   schedulePageSync();
+
+  // Saved annotations may have arrived before the page elements existed.
+  if (annotations.length) {
+    annotations.forEach((a) => ensureAnnotationCanvas(document.getElementById(`page-${a.pageIndex}`)));
+    for (let i = 0; i < pageCount; i += 1) redrawPage(i);
+  }
 }
 
 window.scrollToPage = (pageIndex) => {

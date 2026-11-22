@@ -117,11 +117,9 @@ fun HwpReaderView(
                 initialPage = initialPage,
                 bridge = bridge,
             ).also { view ->
+                // Annotations are re-applied once the page script reports it is loaded
+                // (window.loadAnnotations does not exist yet at this point).
                 webView = view
-                view.evaluateJavascript(
-                    "window.loadAnnotations(${"'" + annotationsJson.replace("'", "\\'") + "'"});",
-                    null,
-                )
             }
         },
         update = { view ->
@@ -171,6 +169,9 @@ fun HwpReaderView(
                 "window.setAnnotationState($annotationEnabled, '$annotationTool', '$annotationColorHex');",
                 null,
             )
+            // Restore saved annotations now that the viewer script is ready.
+            val escaped = annotationsJson.replace("'", "\\'")
+            view.evaluateJavascript("window.loadAnnotations('$escaped');", null)
         }
     }
 
