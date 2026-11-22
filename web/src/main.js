@@ -350,27 +350,32 @@ window.requestSharedPages = async (pageIndexes) => {
     const results = [];
     for (const rawPage of pages) {
       const targetPage = Math.max(0, Math.min(Number(rawPage) || 0, documentPageCount - 1));
-      const svg = documentHandle.renderPageSvg(targetPage);
-      const svgUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-      const image = new Image();
-      await new Promise((resolve, reject) => {
-        image.onload = resolve;
-        image.onerror = reject;
-        image.src = svgUrl;
-      });
-      const width = 1600;
-      const height = Math.round(width * ((image.naturalHeight / image.naturalWidth) || 1.3));
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, width, height);
-      ctx.drawImage(image, 0, 0, width, height);
-      annotations.filter((a) => a.pageIndex === targetPage)
-        .forEach((a) => drawStrokeOnContext(ctx, a, width, height));
-      const dataUrl = canvas.toDataURL('image/png');
-      results.push(dataUrl.substring(dataUrl.indexOf(',') + 1));
+      try {
+        const svg = documentHandle.renderPageSvg(targetPage);
+        const svgUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        const image = new Image();
+        await new Promise((resolve, reject) => {
+          image.onload = resolve;
+          image.onerror = reject;
+          image.src = svgUrl;
+        });
+        const width = 1600;
+        const height = Math.round(width * ((image.naturalHeight / image.naturalWidth) || 1.3));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(image, 0, 0, width, height);
+        annotations.filter((a) => a.pageIndex === targetPage)
+          .forEach((a) => drawStrokeOnContext(ctx, a, width, height));
+        const dataUrl = canvas.toDataURL('image/png');
+        results.push(dataUrl.substring(dataUrl.indexOf(',') + 1));
+      } catch (pageError) {
+        // Skip pages that fail to render, but keep the ones that succeeded.
+        try { globalThis.AndroidBridge?.onError?.(`share page ${targetPage}: ${pageError?.message ?? pageError}`); } catch (_) { }
+      }
     }
     globalThis.AndroidBridge?.onSharedPages?.(JSON.stringify(results));
   } catch (error) {

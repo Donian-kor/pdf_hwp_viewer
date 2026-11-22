@@ -262,8 +262,16 @@ private class HwpJavascriptBridge(
     @JavascriptInterface
     fun onSharedPages(base64ListJson: String) {
         val list = runCatching {
-            base64ListJson.trim('[', ']').split(',').map { it.trim('"') }.filter { it.isNotBlank() }
-        }.getOrDefault(emptyList())
+            val array = org.json.JSONArray(base64ListJson)
+            (0 until array.length()).mapNotNull { index ->
+                array.optString(index, "").takeIf { it.isNotBlank() }
+            }
+        }.getOrElse {
+            // Fallback: naive split (should rarely be hit with valid JSON).
+            base64ListJson.trim('[', ']').split(',')
+                .map { it.trim('"') }
+                .filter { it.isNotBlank() }
+        }
         android.os.Handler(android.os.Looper.getMainLooper()).post { onSharedImages(list) }
     }
 }

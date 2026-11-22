@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,6 +21,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Highlight
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,19 +39,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kr.docuview.app.data.AnnotationColor
 import kr.docuview.app.data.AnnotationTool
 
 /**
- * Annotation toolbar. The close button lives in its own transparent row ABOVE
- * the toolbar surface, so it never overlaps the action buttons.
- *
- * Tapping the currently selected tool again deselects it (NONE), which lets the
- * user pan/zoom the document while the toolbar stays open.
- *
- * Text/border colors follow the active theme: white on dark, black on light.
+ * Responsive annotation toolbar. On narrow screens the tool labels collapse to
+ * icons so every action (including 초기화) stays visible and tappable.
  */
 @Composable
 fun AnnotationToolbar(
@@ -59,113 +60,105 @@ fun AnnotationToolbar(
     onClearAll: () -> Unit,
     onClose: () -> Unit,
 ) {
-    val outline = MaterialTheme.colorScheme.outline
-    val onSurface = MaterialTheme.colorScheme.onSurface
+    BoxWithConstraints(modifier = modifier) {
+        // Below ~360dp, switch to icon-only buttons to avoid label clipping.
+        val compact = maxWidth < 360.dp
 
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(end = 8.dp),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(
-                onClick = onClose,
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surface, CircleShape),
+                    .fillMaxWidth()
+                    .padding(end = 8.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Default.Close, contentDescription = "주석 툴바 닫기", tint = onSurface)
-            }
-        }
-
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            tonalElevation = 4.dp,
-            shadowElevation = 4.dp,
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, outline),
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
+                IconButton(
+                    onClick = onClose,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surface, CircleShape),
                 ) {
-                    ToolButton(
-                        label = "그리기",
-                        selected = tool == AnnotationTool.PEN,
-                        onClick = {
-                            onToolChange(
-                                if (tool == AnnotationTool.PEN) AnnotationTool.NONE else AnnotationTool.PEN,
-                            )
-                        },
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "주석 툴바 닫기",
+                        tint = MaterialTheme.colorScheme.onSurface,
                     )
-                    Spacer(Modifier.width(4.dp))
-                    ToolButton(
-                        label = "형광펜",
-                        selected = tool == AnnotationTool.HIGHLIGHT,
-                        onClick = {
-                            onToolChange(
-                                if (tool == AnnotationTool.HIGHLIGHT) AnnotationTool.NONE else AnnotationTool.HIGHLIGHT,
-                            )
-                        },
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    // 되돌리기: theme-aware text/border (white on dark, black on light)
-                    OutlinedButton(onClick = onUndo, border = BorderStroke(1.dp, onSurface)) {
-                        Text(
-                            "되돌리기",
-                            color = onSurface,
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1,
-                            softWrap = false,
-                        )
-                    }
-                    Spacer(Modifier.width(4.dp))
-                    OutlinedButton(
-                        onClick = onClearAll,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
-                    ) {
-                        Text(
-                            "초기화",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1,
-                            softWrap = false,
-                            overflow = TextOverflow.Visible,
-                        )
-                    }
                 }
+            }
 
-                Spacer(Modifier.height(6.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                tonalElevation = 4.dp,
+                shadowElevation = 4.dp,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    AnnotationColor.entries.forEach { c ->
-                        val selected = color == c
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                                    CircleShape,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        ToolButton(
+                            label = "그리기",
+                            icon = Icons.Default.Edit,
+                            compact = compact,
+                            selected = tool == AnnotationTool.PEN,
+                            onClick = {
+                                onToolChange(
+                                    if (tool == AnnotationTool.PEN) AnnotationTool.NONE else AnnotationTool.PEN,
                                 )
-                                .clickable { onColorChange(c) },
-                            contentAlignment = Alignment.Center,
-                        ) {
+                            },
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        ToolButton(
+                            label = "형광펜",
+                            icon = Icons.Default.Highlight,
+                            compact = compact,
+                            selected = tool == AnnotationTool.HIGHLIGHT,
+                            onClick = {
+                                onToolChange(
+                                    if (tool == AnnotationTool.HIGHLIGHT) AnnotationTool.NONE else AnnotationTool.HIGHLIGHT,
+                                )
+                            },
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        // 되돌리기
+                        ActionButton(
+                            label = "되돌리기",
+                            icon = Icons.Default.Restore,
+                            compact = compact,
+                            onClick = onUndo,
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        // 초기화 - keep visible on narrow screens as icon-only.
+                        ActionButton(
+                            label = "초기화",
+                            icon = Icons.Default.DeleteSweep,
+                            compact = compact,
+                            contentColor = MaterialTheme.colorScheme.error,
+                            borderColor = MaterialTheme.colorScheme.error,
+                            onClick = onClearAll,
+                        )
+                    }
+
+                    Spacer(Modifier.height(6.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        AnnotationColor.entries.forEach { c ->
+                            val selected = color == c
                             Box(
                                 modifier = Modifier
-                                    .size(if (selected) 34.dp else 30.dp)
+                                    .size(if (selected) 36.dp else 30.dp)
                                     .clip(CircleShape)
-                                    .background(Color(c.argb), CircleShape),
+                                    .background(Color(c.argb), CircleShape)
+                                    .clickable { onColorChange(c) },
                             )
                         }
                     }
@@ -178,26 +171,23 @@ fun AnnotationToolbar(
 @Composable
 private fun ToolButton(
     label: String,
+    icon: ImageVector,
+    compact: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val selectedContainer = MaterialTheme.colorScheme.primary
-    val selectedText = MaterialTheme.colorScheme.onPrimary // white in light, dark in dark
-    val normalText = MaterialTheme.colorScheme.onSurface // dark in light, white in dark
-    val normalBorder = MaterialTheme.colorScheme.onSurface // black line in light theme
-
     val containerColor by animateColorAsState(
-        targetValue = if (selected) selectedContainer else Color.Transparent,
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
         animationSpec = spring(),
         label = "toolContainer",
     )
     val borderColor by animateColorAsState(
-        targetValue = if (selected) selectedContainer else normalBorder,
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
         animationSpec = spring(),
         label = "toolBorder",
     )
     val contentColor by animateColorAsState(
-        targetValue = if (selected) selectedText else normalText,
+        targetValue = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
         animationSpec = spring(),
         label = "toolContent",
     )
@@ -214,13 +204,55 @@ private fun ToolButton(
             containerColor = containerColor,
             contentColor = contentColor,
         ),
+        contentPadding = if (compact) {
+            androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+        } else {
+            ButtonDefaults.ContentPadding
+        },
     ) {
-        Text(
-            label,
-            color = contentColor,
-            style = MaterialTheme.typography.labelSmall,
-            maxLines = 1,
-            softWrap = false,
-        )
+        if (compact) {
+            Icon(icon, contentDescription = label, modifier = Modifier.size(18.dp))
+        } else {
+            Text(
+                label,
+                color = contentColor,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                softWrap = false,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActionButton(
+    label: String,
+    icon: ImageVector,
+    compact: Boolean,
+    onClick: () -> Unit,
+    contentColor: Color = MaterialTheme.colorScheme.onSurface,
+    borderColor: Color = MaterialTheme.colorScheme.onSurface,
+) {
+    OutlinedButton(
+        onClick = onClick,
+        border = BorderStroke(1.dp, borderColor),
+        contentPadding = if (compact) {
+            androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+        } else {
+            ButtonDefaults.ContentPadding
+        },
+    ) {
+        if (compact) {
+            Icon(icon, contentDescription = label, tint = contentColor, modifier = Modifier.size(18.dp))
+        } else {
+            Text(
+                label,
+                color = contentColor,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Visible,
+            )
+        }
     }
 }
