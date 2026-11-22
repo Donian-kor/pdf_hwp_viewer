@@ -13,8 +13,8 @@ android {
         applicationId = "kr.docuview.app"
         minSdk = 28
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -51,8 +51,12 @@ android {
             assets.srcDir { privacyAssetsDir }
         }
     }
-    tasks.matching { it.name == "mergeDebugAssets" || it.name == "mergeReleaseAssets" }
-        .configureEach { dependsOn(copyPrivacyPolicy) }
+    tasks.matching {
+        it.name == "mergeDebugAssets" ||
+            it.name == "mergeReleaseAssets" ||
+            it.name == "generateReleaseLintVitalReportModel" ||
+            it.name == "lintVitalAnalyzeRelease"
+    }.configureEach { dependsOn(copyPrivacyPolicy) }
 }
 
 dependencies {

@@ -244,7 +244,7 @@
       <h2><span class="no">1.</span>적용 범위와 핵심 원칙</h2>
       <ul>
         <li><strong>대상:</strong> DocuView Android 앱 v1.1.0 (<code>kr.docuview.app</code>). Google Play를 통해 배포되는 이 앱 자체에 한정됩니다.</li>
-        <li><strong>기능:</strong> PDF·HWP·HWPX 문서 열람, 최근 문서 목록, 페이지 이동·북마크, 문서 찾기, 파일 열기·삭제입니다. 문서 편집, 주석, 변환, 업로드 기능은 제공하지 않습니다.</li>
+        <li><strong>기능:</strong> PDF·HWP·HWPX 문서 열람, 최근 문서 목록, 페이지 이동·북마크, 문서 찾기, 파일 열기·삭제, <strong>문서 위 주석 작성(자유 그리기·형광펜, 5색) 및 주석이 포함된 페이지 이미지 공유</strong>입니다. 문서 원본 편집이나 서버 업로드는 제공하지 않습니다.</li>
         <li><strong>오프라인 원칙:</strong> 앱은 <strong>인터넷(INTERNET) 권한을 선언하지 않습니다.</strong> 개발자 서버로 데이터를 보내지 않으며, 외부 API를 호출하지 않습니다.</li>
         <li><strong>계정·결제·광고 없음:</strong> 회원가입, 로그인, 인앱 결제, 구독, 광고 기능이 없으므로 계정 정보나 결제 정보, 광고 식별자를 처리하지 않습니다.</li>
       </ul>
@@ -275,6 +275,11 @@
               <td>이용자가 뷰어에서 북마크를 추가할 때 저장하고, 삭제할 때 제거합니다.</td>
             </tr>
             <tr>
+              <td>주석 데이터</td>
+              <td>문서 ID, 페이지 인덱스, 도구(그리기/형광펜), 색상(빨·주·노·초·파), 정규화 좌표, 생성 시각</td>
+              <td>이용자가 뷰어에서 주석을 작성할 때 Room 데이터베이스에 저장하며, 되돌리기·초기화로 삭제할 수 있습니다. 주석은 원문 파일에 병합되지 않고 기기에만 저장됩니다.</td>
+            </tr>
+            <tr>
               <td>앱 설정</td>
               <td>마지막 페이지 복원 여부, 컴팩트 뷰, 화면 켜짐 유지, 테마 모드</td>
               <td>이용자가 설정 화면에서 변경한 값을 <code>SharedPreferences</code>에 저장합니다.</td>
@@ -300,6 +305,7 @@
       <ul>
         <li>이용자가 선택한 문서를 화면에 표시하고 페이지를 이동하거나 마지막 읽던 위치를 복원합니다.</li>
         <li>최근 문서 목록, 페이지 북마크, 문서 찾기 결과를 기기에서 제공합니다.</li>
+        <li>이용자가 문서 위에 주석(그리기·형광펜)을 작성하고, <strong>주석이 포함된 페이지를 PNG 이미지로 생성해 기기 내 다른 앱(카카오톡·메일·메시지 등)으로 공유</strong>합니다.</li>
         <li>이용자가 설정한 화면·읽기 환경을 다음 실행에도 유지합니다.</li>
         <li>문서 찾기에서 이용자가 직접 선택한 파일을 열거나 삭제합니다.</li>
         <li>PDF는 Android 플랫폼 렌더러로, HWP/HWPX는 앱에 내장된 WebAssembly 렌더러로 화면에 표시합니다.</li>
@@ -311,7 +317,7 @@
       <h2><span class="no">4.</span>저장 위치와 보유 기간</h2>
       <ul>
         <li><strong>문서 사본:</strong> 앱 내부 저장소 <code>filesDir/documents/</code>에 보관합니다. 원본 파일은 수정하지 않습니다.</li>
-        <li><strong>메타데이터·북마크:</strong> 앱 내부 데이터베이스 <code>docuview.db</code>에 보관합니다.</li>
+        <li><strong>메타데이터·북마크·주석:</strong> 앱 내부 데이터베이스 <code>docuview.db</code>에 보관합니다.</li>
         <li><strong>설정·스캔 캐시:</strong> 앱 전용 <code>SharedPreferences</code>에 보관합니다.</li>
         <li><strong>임시 캐시:</strong> 앱 캐시 디렉터리에 보관하며, 이용자가 ‘설정 &gt; 캐시 비우기’로 즉시 삭제할 수 있습니다.</li>
       </ul>
@@ -322,7 +328,7 @@
     <section class="item" id="ko-5">
       <h2><span class="no">5.</span>외부 전송 및 제3자 제공 여부</h2>
       <ul>
-        <li>앱에는 인터넷 권한이 없으므로 문서, 메타데이터, 북마크, 설정 값이 <strong>외부로 전송되지 않습니다.</strong></li>
+        <li>앱에는 인터넷 권한이 없으므로 문서, 메타데이터, 북마크, 주석, 설정 값이 <strong>외부로 전송되지 않습니다.</strong> 주석 페이지 공유는 이용자가 공유 버튼을 눌렀을 때 <strong>이용자가 선택한 앱으로만</strong> 기기 내에서 이루어지며, 개발자 서버에는 전송되지 않습니다.</li>
         <li>Firebase, Google Analytics, Crashlytics, AdMob, Google Play Billing, 외부 AI API 등 데이터를 수집하는 제3자 SDK를 사용하지 않습니다.</li>
         <li>HWP/HWPX 렌더링에는 오픈소스 <code>@rhwp/core</code>(MIT)를 사용합니다. 이 라이브러리는 앱 번들에 포함되어 기기에서만 동작하며, 별도 서버로 데이터를 보내지 않습니다. 구성 요소 목록은 프로젝트의 <code>LICENSES.md</code>에서 확인할 수 있습니다.</li>
         <li>개발자는 개인정보 처리업무를 외부에 위탁하지 않고, 국외로 이전하지 않으며, 수집한 정보를 판매하거나 제3자에게 제공하지 않습니다. 가명정보·민감정보를 별도로 처리하거나 자동화된 결정을 수행하지도 않습니다.</li>
@@ -439,7 +445,7 @@
       <h2><span class="no">1.</span>Scope and Key Principles</h2>
       <ul>
         <li><strong>Scope:</strong> DocuView for Android v1.1.0 (<code>kr.docuview.app</code>) only.</li>
-        <li><strong>Features:</strong> Read PDF, HWP, and HWPX documents; recent documents list; page navigation and bookmarks; document discovery; opening and deleting user-selected files. Editing, annotations, conversion, and upload are not provided.</li>
+        <li><strong>Features:</strong> Read PDF, HWP, and HWPX documents; recent documents list; page navigation and bookmarks; document discovery; opening and deleting user-selected files; <strong>annotations (freehand pen and highlighter in 5 colors) and sharing annotated page images</strong>. Editing original documents or uploading to servers is not provided.</li>
         <li><strong>Offline by design:</strong> The app declares <strong>no INTERNET permission.</strong> It does not send data to developer servers and does not call external APIs.</li>
         <li><strong>No accounts, purchases, or ads:</strong> There is no sign-up, login, in-app purchase, subscription, or advertising, so no account, payment, or advertising identifier is processed.</li>
       </ul>
@@ -470,6 +476,11 @@
               <td>Saved when you add a bookmark and removed when you delete one.</td>
             </tr>
             <tr>
+              <td>Annotations</td>
+              <td>Document ID, page index, tool (pen/highlighter), color (5 rainbow colors), normalized coordinates, creation time</td>
+              <td>Saved in the Room database when you draw annotations; removable via undo or clear. Annotations are not merged into the original file and stay on your device.</td>
+            </tr>
+            <tr>
               <td>App settings</td>
               <td>Restore last page, compact view, keep screen on, theme mode</td>
               <td>Preferences you change in Settings, stored in <code>SharedPreferences</code>.</td>
@@ -495,6 +506,7 @@
       <ul>
         <li>To display your selected document, navigate pages, and restore the last reading position.</li>
         <li>To show the recent documents list, bookmarks, and local document discovery results.</li>
+        <li>To draw annotations (pen, highlighter) on a page and <strong>generate a PNG of that annotated page to share via other apps on your device</strong> (KakaoTalk, email, messages, etc.) when you tap Share.</li>
         <li>To keep your reading and display preferences between launches.</li>
         <li>To open or delete a file you explicitly select in document discovery.</li>
         <li>To render PDFs with the Android platform renderer and HWP/HWPX with the bundled WebAssembly renderer.</li>
@@ -506,7 +518,7 @@
       <h2><span class="no">4.</span>Storage and Retention</h2>
       <ul>
         <li><strong>Document copies:</strong> internal app storage at <code>filesDir/documents/</code>. Original files are not modified.</li>
-        <li><strong>Metadata and bookmarks:</strong> internal database <code>docuview.db</code>.</li>
+        <li><strong>Metadata, bookmarks, and annotations:</strong> internal database <code>docuview.db</code>.</li>
         <li><strong>Settings and scan cache:</strong> app-private <code>SharedPreferences</code>.</li>
         <li><strong>Temporary cache:</strong> app cache directory, removable via <strong>[Settings &gt; Clear cache]</strong>.</li>
       </ul>
@@ -517,7 +529,7 @@
     <section class="item" id="en-5">
       <h2><span class="no">5.</span>External Transmission and Third Parties</h2>
       <ul>
-        <li>The app has no internet permission, so documents, metadata, bookmarks, and settings are <strong>never transmitted</strong>.</li>
+        <li>The app has no internet permission, so documents, metadata, bookmarks, annotations, and settings are <strong>never transmitted</strong>. Annotated page sharing happens <strong>only to apps you choose</strong> on your device when you tap Share; nothing is sent to developer servers.</li>
         <li>No data-collecting third-party SDKs are used: no Firebase, Google Analytics, Crashlytics, AdMob, Google Play Billing, or external AI APIs.</li>
         <li>HWP/HWPX rendering uses the open-source <code>@rhwp/core</code> (MIT) bundled into the app. It runs entirely on your device and sends nothing to a server. See <code>LICENSES.md</code> in the project for component details.</li>
         <li>The Developer does not entrust processing to third parties, transfer data abroad, sell data, or share it with third parties. No pseudonymized or sensitive data is separately processed, and no automated decisions are made.</li>
