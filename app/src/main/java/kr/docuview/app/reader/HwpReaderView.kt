@@ -2,6 +2,7 @@ package kr.docuview.app.reader
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.util.Base64
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -11,8 +12,8 @@ import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -39,12 +40,23 @@ fun HwpReaderView(
     onPageChanged: (Int, Int) -> Unit,
     onPageCount: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    annotationEnabled: Boolean = false,
+    annotationTool: String = "PEN",
+    annotationColorHex: String = "#FF3B30",
+    annotationsJson: String = "[]",
+    onStroke: (pageIndex: Int, tool: String, colorHex: String, pointsJson: String) -> Unit = { _, _, _, _ -> },
+    currentPageForUndo: Int = 0,
+    undoRequest: Int = 0,
+    clearRequest: Int = 0,
+    shareRequest: Int = 0,
+    onSharedImage: (ByteArray) -> Unit = {},
 ) {
     var webView by remember(documentId) { mutableStateOf<WebView?>(null) }
     var loaded by remember(documentId) { mutableStateOf(false) }
     var renderError by remember(documentId) { mutableStateOf<String?>(null) }
     var lastAppliedPage by remember(documentId) { mutableIntStateOf(initialPage.coerceAtLeast(0)) }
     var totalPages by remember(documentId) { mutableIntStateOf(0) }
+    var lastHandledShare by remember(documentId) { mutableIntStateOf(shareRequest) }
 
     val bridge = remember(documentId) {
         HwpJavascriptBridge(
@@ -59,6 +71,26 @@ fun HwpReaderView(
                 onPageChanged(page, count.coerceAtLeast(0))
             },
             onError = { message -> renderError = message },
+            onStroke = onStroke,
+            onSharedImage = { data ->
+                if (data.isNotBlank()) {
+                    runCatching { onSharedImage(Base64.decode(data, Base64.DEFAULT)) }
+                } else {
+                    // JS canvas was tainted; fall back to capturing the WebView.
+                    val view = webView
+                    if (view != null) {
+                        val bitmap = android.graphics.Bitmap.createBitmap(
+                            view.width.coerceAtLeast(1),
+                            view.height.coerceAtLeast(1),
+                            android.graphics.Bitmap.Config.ARGB_8888,
+                        )
+                        view.draw(android.graphics.Canvas(bitmap))
+                        val stream = java.io.ByteArrayOutputStream()
+                        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
+                        onSharedImage(stream.toByteArray())
+                    }
+                }
+            },
         )
     }
 
@@ -73,12 +105,28 @@ fun HwpReaderView(
                 bridge = bridge,
             ).also { view ->
                 webView = view
+                view.evaluateJavascript(
+                    "window.loadAnnotations(${"'" + annotationsJson.replace("'", "\\'") + "'"});",
+                    null,
+                )
             }
         },
         update = { view ->
-            // requestedPage가 변경될 때만 WebView 스크롤 위치 이동.
-            // 사용자 스크롤 중에는 해당되지 않으므로 충돌이 없음.
             if (loaded) {
+                view.evaluateJavascript(
+                    "window.setAnnotationState($annotationEnabled, '$annotationTool', '$annotationColorHex');",
+                    null,
+                )
+                if (undoRequest > 0) {
+                    view.evaluateJavascript("window.undoLastAnnotation($currentPageForUndo);", null)
+                }
+                if (clearRequest > 0) {
+                    view.evaluateJavascript("window.clearPageAnnotations($currentPageForUndo);", null)
+                }
+                if (shareRequest > 0 && shareRequest != lastHandledShare) {
+                    lastHandledShare = shareRequest
+                    view.evaluateJavascript("window.requestSharedPage($currentPageForUndo);", null)
+                }
                 val safeRequestedPage = if (totalPages > 0) requestedPage.coerceIn(0, totalPages - 1) else requestedPage.coerceAtLeast(0)
                 if (safeRequestedPage != lastAppliedPage) {
                     lastAppliedPage = safeRequestedPage
@@ -92,6 +140,18 @@ fun HwpReaderView(
         val view = webView
         if (view != null && loaded) {
             view.evaluateJavascript("window.__docuviewPageSync = true;", null)
+            view.evaluateJavascript(
+                "window.setAnnotationState($annotationEnabled, '$annotationTool', '$annotationColorHex');",
+                null,
+            )
+        }
+    }
+
+    LaunchedEffect(annotationsJson) {
+        val view = webView
+        if (view != null && loaded) {
+            val escaped = annotationsJson.replace("'", "\\'")
+            view.evaluateJavascript("window.loadAnnotations('$escaped');", null)
         }
     }
 
@@ -119,11 +179,6 @@ fun HwpReaderView(
     }
 }
 
-private class CustomWebView(context: Context) : WebView(context) {
-    fun getScrollRange(): Int = computeVerticalScrollRange()
-    fun getScrollExtent(): Int = computeVerticalScrollExtent()
-}
-
 @SuppressLint("SetJavaScriptEnabled")
 private fun createHwpWebView(
     context: Context,
@@ -132,10 +187,10 @@ private fun createHwpWebView(
     initialPage: Int,
     bridge: HwpJavascriptBridge,
 ): WebView {
-    return CustomWebView(context).apply {
+    return WebView(context).apply {
         setBackgroundColor(android.graphics.Color.rgb(233, 235, 240))
         settings.apply {
-            javaScriptEnabled = true // Required by the local rhwp WebAssembly renderer.
+            javaScriptEnabled = true
             domStorageEnabled = false
             allowFileAccess = false
             allowContentAccess = false
@@ -149,7 +204,6 @@ private fun createHwpWebView(
         }
         addJavascriptInterface(bridge, "AndroidBridge")
         webViewClient = LocalHwpWebViewClient(context.applicationContext, file)
-
         val html = context.assets.open("hwpviewer/index.html").bufferedReader().use { it.readText() }
         val baseUrl = "$LOCAL_ORIGIN/?documentId=$documentId&page=$initialPage"
         loadDataWithBaseURL(baseUrl, html, "text/html", "UTF-8", null)
@@ -160,12 +214,12 @@ private class HwpJavascriptBridge(
     private val onLoaded: (Int) -> Unit,
     private val onPageChanged: (Int, Int) -> Unit,
     private val onError: (String) -> Unit,
+    private val onStroke: (Int, String, String, String) -> Unit,
+    private val onSharedImage: (String) -> Unit,
 ) {
     @JavascriptInterface
     fun onDocumentLoaded(pageCount: Int) {
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            onLoaded(pageCount.coerceAtLeast(0))
-        }
+        android.os.Handler(android.os.Looper.getMainLooper()).post { onLoaded(pageCount.coerceAtLeast(0)) }
     }
 
     @JavascriptInterface
@@ -178,6 +232,18 @@ private class HwpJavascriptBridge(
         android.os.Handler(android.os.Looper.getMainLooper()).post {
             onPageChanged(pageIndex.coerceAtLeast(0), pageCount.coerceAtLeast(0))
         }
+    }
+
+    @JavascriptInterface
+    fun onStroke(pageIndex: Int, tool: String, color: String, pointsJson: String) {
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            onStroke(pageIndex.coerceAtLeast(0), tool, color, pointsJson)
+        }
+    }
+
+    @JavascriptInterface
+    fun onSharedPage(base64Png: String) {
+        android.os.Handler(android.os.Looper.getMainLooper()).post { onSharedImage(base64Png) }
     }
 }
 

@@ -69,6 +69,7 @@ import kr.docuview.app.data.DocumentDao
 import kr.docuview.app.data.DocumentEntity
 import kr.docuview.app.data.PageAnnotationEntity
 import kr.docuview.app.data.decodePoints
+import kr.docuview.app.data.encodeAnnotationsForWebView
 import kr.docuview.app.data.encodePoints
 import kr.docuview.app.reader.AnnotationRenderer
 import kr.docuview.app.reader.HwpReaderView
@@ -103,6 +104,9 @@ fun ReaderScreen(
     var strokes by remember(document.id) { mutableStateOf<List<AnnotationStroke>>(emptyList()) }
     var pdfSession by remember(document.id) { mutableStateOf<PdfSession?>(null) }
     var sharing by remember(document.id) { mutableStateOf(false) }
+    var hwpUndoRequest by remember(document.id) { mutableIntStateOf(0) }
+    var hwpClearRequest by remember(document.id) { mutableIntStateOf(0) }
+    var hwpShareRequest by remember(document.id) { mutableIntStateOf(0) }
 
     val annotationsByPage = remember(strokes) { strokes.groupBy { it.pageIndex } }
     val isPdf = document.extension == "pdf"
@@ -217,7 +221,7 @@ fun ReaderScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    if (isPdf) {
+                    if (isPdf || document.extension == "hwp" || document.extension == "hwpx") {
                         IconButton(onClick = { annotationMode = !annotationMode }) {
                             Icon(
                                 Icons.Default.Edit,
@@ -228,6 +232,11 @@ fun ReaderScreen(
                         IconButton(
                             enabled = !sharing,
                             onClick = {
+                                if (!isPdf) {
+                                    // HWP: WebView renders the annotated page and sends PNG bytes back.
+                                    hwpShareRequest++
+                                    return@IconButton
+                                }
                                 scope.launch {
                                     sharing = true
                                     try {
@@ -368,10 +377,50 @@ fun ReaderScreen(
                     },
                     onPageCount = { count -> pageCount = count },
                     modifier = Modifier.fillMaxSize(),
+                    annotationEnabled = annotationMode,
+                    annotationTool = annotationTool.name,
+                    annotationColorHex = annotationColor.hex,
+                    annotationsJson = remember(strokes) { encodeAnnotationsForWebView(strokes) },
+                    onStroke = { pageIndex, tool, colorHex, pointsJson ->
+                        val toolValue = runCatching { AnnotationTool.valueOf(tool) }.getOrDefault(AnnotationTool.PEN)
+                        val colorValue = AnnotationColor.entries.firstOrNull { it.hex.equals(colorHex, ignoreCase = true) }
+                            ?: AnnotationColor.RED
+                        // Parse JSON like [[0.1,0.2],[0.3,0.4]] produced by the WebView.
+                        val points = Regex("\\[([0-9.\\-eE]+),([0-9.\\-eE]+)]")
+                            .findAll(pointsJson)
+                            .mapNotNull { match ->
+                                val x = match.groupValues[1].toFloatOrNull()
+                                val y = match.groupValues[2].toFloatOrNull()
+                                if (x != null && y != null) x to y else null
+                            }
+                            .toList()
+                        saveStroke(
+                            AnnotationStroke.create(
+                                pageIndex = pageIndex,
+                                tool = toolValue,
+                                color = colorValue,
+                                points = points,
+                            ),
+                        )
+                    },
+                    currentPageForUndo = currentPage,
+                    undoRequest = hwpUndoRequest,
+                    clearRequest = hwpClearRequest,
+                    shareRequest = hwpShareRequest,
+                    onSharedImage = { bytes ->
+                        val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        if (bitmap != null) {
+                            PageShareHelper.shareBitmap(
+                                context,
+                                bitmap,
+                                "docuview-hwp-page-${currentPage + 1}-${System.currentTimeMillis()}.png",
+                            )
+                        }
+                    },
                 )
             }
 
-            if (annotationMode && isPdf) {
+            if (annotationMode) {
                 AnnotationToolbar(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -381,13 +430,22 @@ fun ReaderScreen(
                     onToolChange = { annotationTool = it },
                     onColorChange = { annotationColor = it },
                     onUndo = {
-                        val last = strokes.filter { it.pageIndex == currentPage }.maxByOrNull { it.id }
-                        if (last != null) {
-                            scope.launch { dao.deleteAnnotation(document.id, last.id) }
+                        if (isPdf) {
+                            val last = strokes.filter { it.pageIndex == currentPage }.maxByOrNull { it.id }
+                            if (last != null) {
+                                scope.launch { dao.deleteAnnotation(document.id, last.id) }
+                            }
+                        } else {
+                            hwpUndoRequest++
+                            val last = strokes.filter { it.pageIndex == currentPage }.maxByOrNull { it.id }
+                            if (last != null) {
+                                scope.launch { dao.deleteAnnotation(document.id, last.id) }
+                            }
                         }
                     },
                     onClearAll = {
                         scope.launch { dao.clearPageAnnotations(document.id, currentPage) }
+                        if (!isPdf) hwpClearRequest++
                     },
                     onClose = { annotationMode = false },
                 )

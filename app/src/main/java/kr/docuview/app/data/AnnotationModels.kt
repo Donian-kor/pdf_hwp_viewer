@@ -44,6 +44,27 @@ data class AnnotationStroke(
 internal fun encodePoints(points: List<Pair<Float, Float>>): String =
     points.joinToString(";") { "${it.first},${it.second}" }
 
+/** Serializes strokes to the JSON shape expected by the HWP WebView renderer. */
+fun encodeAnnotationsForWebView(strokes: List<AnnotationStroke>): String {
+    fun esc(value: String) = value.replace("\\", "\\\\").replace("'", "\\'")
+    return buildString {
+        append('[')
+        strokes.forEachIndexed { index, stroke ->
+            if (index > 0) append(',')
+            append("{\"pageIndex\":${stroke.pageIndex},")
+            append("\"tool\":\"${esc(stroke.tool.name)}\",")
+            append("\"color\":\"${esc(stroke.color.hex)}\",")
+            append("\"points\":[")
+            stroke.points.forEachIndexed { pIndex, point ->
+                if (pIndex > 0) append(',')
+                append("[${point.first},${point.second}]")
+            }
+            append("]}")
+        }
+        append(']')
+    }
+}
+
 internal fun decodePoints(value: String): List<Pair<Float, Float>> =
     value.split(';').mapNotNull { part ->
         val pieces = part.split(',')

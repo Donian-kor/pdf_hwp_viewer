@@ -13,6 +13,14 @@ let documentPageCount = 0;
 let renderObserver = null;
 let reportTimer = 0;
 
+// ---- annotation state ----
+let annotations = [];
+let lastLoadedAnnotationsJson = '';
+let annotationEnabled = false;
+let annotationTool = 'PEN';
+let annotationColor = '#FF3B30';
+let activeStroke = null;
+
 const MAX_CACHED_PAGES = 24;
 const PLACEHOLDER_CHUNK = 250;
 
@@ -33,7 +41,6 @@ function schedulePageSync() {
       return;
     }
 
-    // Fallback for gaps between pages: the first page reaching the viewport center.
     for (const candidate of pagesNode.children) {
       if (candidate.getBoundingClientRect().bottom >= centerY) {
         reportPage(Number(candidate.dataset.pageIndex), documentPageCount);
@@ -63,9 +70,7 @@ function reportPage(pageIndex, pageCount) {
   currentPage = safeIndex;
   try {
     globalThis.AndroidBridge?.onPageChanged?.(safeIndex, pageCount);
-  } catch (_) {
-    // The Android bridge may not be present when this page is opened in a desktop browser.
-  }
+  } catch (_) { /* bridge unavailable in desktop browser */ }
 }
 
 function trimRenderedPages() {
@@ -87,14 +92,253 @@ function cleanupPreviousDocument() {
   renderObserver = null;
   for (const url of pageObjectUrls.values()) URL.revokeObjectURL(url);
   pageObjectUrls.clear();
+  annotations = [];
+  activeStroke = null;
   documentPageCount = 0;
   currentPage = -1;
   pagesNode.replaceChildren();
-  if (documentHandle && typeof documentHandle.free === 'function') {
-    documentHandle.free();
-  }
+  if (documentHandle && typeof documentHandle.free === 'function') documentHandle.free();
   documentHandle = null;
 }
+
+// ---------- annotation rendering ----------
+function drawStrokeOnContext(ctx, stroke, width, height) {
+  const pts = stroke.points || [];
+  if (!pts.length) return;
+  const tool = stroke.tool || 'PEN';
+  const color = stroke.color || '#FF3B30';
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // WebView renders at device scale (typically 2x), so halve the CSS pixel width
+  // to match the physical PDF stroke thickness.
+  if (tool === 'HIGHLIGHT') {
+    ctx.globalAlpha = 0.35;
+    ctx.lineWidth = 20;
+  } else {
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 4;
+  }
+
+  if (tool === 'HIGHLIGHT' || tool === 'PEN') {
+    if (pts.length === 1) {
+      ctx.beginPath();
+      ctx.arc(pts[0][0] * width, pts[0][1] * height, ctx.lineWidth / 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0] * width, pts[0][1] * height);
+      for (let i = 1; i < pts.length; i += 1) ctx.lineTo(pts[i][0] * width, pts[i][1] * height);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function redrawPage(pageIndex) {
+  const page = document.getElementById(`page-${pageIndex}`);
+  const canvas = page?.querySelector('canvas.annotation-layer');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  annotations.filter((a) => a.pageIndex === pageIndex).forEach((a) => drawStrokeOnContext(ctx, a, canvas.width, canvas.height));
+  if (activeStroke && activeStroke.pageIndex === pageIndex) {
+    drawStrokeOnContext(ctx, activeStroke, canvas.width, canvas.height);
+  }
+}
+
+function resizeAnnotationCanvas(pageElement) {
+  const canvas = pageElement.querySelector('canvas.annotation-layer');
+  const img = pageElement.querySelector('img');
+  if (!canvas || !img) return;
+  const width = img.clientWidth || img.naturalWidth || 720;
+  const height = img.clientHeight || img.naturalHeight || 900;
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+    redrawPage(Number(pageElement.dataset.pageIndex));
+  }
+}
+
+function ensureAnnotationCanvas(pageElement) {
+  let canvas = pageElement.querySelector('canvas.annotation-layer');
+  if (canvas) return canvas;
+
+  canvas = document.createElement('canvas');
+  canvas.className = 'annotation-layer';
+  pageElement.appendChild(canvas);
+
+  canvas.addEventListener('pointerdown', (event) => {
+    if (!annotationEnabled || annotationTool === 'NONE') return;
+    event.preventDefault();
+    canvas.setPointerCapture(event.pointerId);
+    const rect = canvas.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width;
+    const y = (event.clientY - rect.top) / rect.height;
+    activeStroke = {
+      id: `local-${Date.now()}`,
+      pageIndex: Number(pageElement.dataset.pageIndex),
+      tool: annotationTool,
+      color: annotationColor,
+      points: [[x, y]],
+    };
+    redrawPage(activeStroke.pageIndex);
+  });
+
+  canvas.addEventListener('pointermove', (event) => {
+    if (!activeStroke || !annotationEnabled) return;
+    event.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width;
+    const y = (event.clientY - rect.top) / rect.height;
+    activeStroke.points.push([x, y]);
+    redrawPage(activeStroke.pageIndex);
+  });
+
+  const finishStroke = (event) => {
+    if (!activeStroke) return;
+    event?.preventDefault?.();
+    const stroke = activeStroke;
+    activeStroke = null;
+    // Keep the stroke locally so it is not erased by the next redraw/load cycle.
+    annotations.push({
+      pageIndex: stroke.pageIndex,
+      tool: stroke.tool,
+      color: stroke.color,
+      points: stroke.points,
+    });
+    lastLoadedAnnotationsJson = JSON.stringify(annotations.map((a) => ({
+      pageIndex: a.pageIndex,
+      tool: a.tool,
+      color: a.color,
+      points: a.points,
+    })));
+    redrawPage(stroke.pageIndex);
+    if (stroke.points.length >= 2) {
+      try {
+        globalThis.AndroidBridge?.onStroke?.(
+          stroke.pageIndex,
+          stroke.tool,
+          stroke.color,
+          JSON.stringify(stroke.points),
+        );
+      } catch (_) { /* bridge unavailable */ }
+    }
+  };
+  canvas.addEventListener('pointerup', finishStroke);
+  canvas.addEventListener('pointercancel', finishStroke);
+  canvas.addEventListener('pointerleave', (event) => { if (activeStroke) finishStroke(event); });
+
+  resizeAnnotationCanvas(pageElement);
+  return canvas;
+}
+
+function applyAnnotationState() {
+  document.querySelectorAll('.page').forEach((page) => {
+    const canvas = ensureAnnotationCanvas(page);
+    canvas.style.pointerEvents = annotationEnabled && annotationTool !== 'NONE' ? 'auto' : 'none';
+    resizeAnnotationCanvas(page);
+  });
+}
+
+window.setAnnotationState = (enabled, tool, colorHex) => {
+  annotationEnabled = !!enabled;
+  annotationTool = tool || 'PEN';
+  annotationColor = colorHex || '#FF3B30';
+  applyAnnotationState();
+};
+
+window.loadAnnotations = (json) => {
+  const raw = json || '[]';
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (_) {
+    parsed = [];
+  }
+  // Structural comparison avoids replacing a just-drawn stroke with the exact
+  // same snapshot from Room (number formatting may differ between JS and Kotlin).
+  const same = parsed.length === annotations.length && parsed.every((a, i) => {
+    const b = annotations[i];
+    if (!b || a.pageIndex !== b.pageIndex || a.tool !== b.tool || a.color?.toUpperCase() !== b.color?.toUpperCase()) return false;
+    if (!Array.isArray(a.points) || !Array.isArray(b.points) || a.points.length !== b.points.length) return false;
+    return a.points.every((p, j) => Math.abs(p[0] - b.points[j][0]) < 1e-4 && Math.abs(p[1] - b.points[j][1]) < 1e-4);
+  });
+  if (same) return;
+  lastLoadedAnnotationsJson = raw;
+  annotations = parsed;
+  annotations.forEach((a) => ensureAnnotationCanvas(document.getElementById(`page-${a.pageIndex}`)));
+  for (let i = 0; i < documentPageCount; i += 1) redrawPage(i);
+};
+
+window.undoLastAnnotation = (pageIndex) => {
+  let removed = false;
+  for (let i = annotations.length - 1; i >= 0; i -= 1) {
+    if (annotations[i].pageIndex === pageIndex) {
+      annotations.splice(i, 1);
+      removed = true;
+      break;
+    }
+  }
+  redrawPage(pageIndex);
+  return removed;
+};
+
+window.clearPageAnnotations = (pageIndex) => {
+  annotations = annotations.filter((a) => a.pageIndex !== pageIndex);
+  redrawPage(pageIndex);
+};
+
+window.requestSharedPage = async (pageIndex) => {
+  try {
+    if (!documentHandle) throw new Error('document not loaded');
+
+    // Determine the page actually visible in the viewport (WebView zoom/scroll aware).
+    // Fall back to the supplied pageIndex when nothing is measurable.
+    let targetPage = Number.isFinite(pageIndex) ? pageIndex : currentPage;
+    const centerY = window.innerHeight / 2;
+    const hit = document.elementFromPoint(window.innerWidth / 2, centerY);
+    const hitPage = hit?.closest?.('.page');
+    if (hitPage && pagesNode.contains(hitPage)) {
+      targetPage = Number(hitPage.dataset.pageIndex);
+    } else {
+      for (const candidate of pagesNode.children) {
+        if (candidate.getBoundingClientRect().bottom >= centerY) {
+          targetPage = Number(candidate.dataset.pageIndex);
+          break;
+        }
+      }
+    }
+
+    const svg = documentHandle.renderPageSvg(targetPage);
+    const svgUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    const image = new Image();
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = reject;
+      image.src = svgUrl;
+    });
+
+    const width = 1600;
+    const height = Math.round(width * ((image.naturalHeight / image.naturalWidth) || 1.3));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(image, 0, 0, width, height);
+    annotations.filter((a) => a.pageIndex === targetPage)
+      .forEach((a) => drawStrokeOnContext(ctx, a, width, height));
+    const dataUrl = canvas.toDataURL('image/png');
+    globalThis.AndroidBridge?.onSharedPage?.(dataUrl.substring(dataUrl.indexOf(',') + 1));
+  } catch (error) {
+    try { globalThis.AndroidBridge?.onSharedPage?.(''); } catch (_) { }
+  }
+};
 
 function renderPage(index, pageElement) {
   if (pageObjectUrls.has(index) || !documentHandle) return;
@@ -108,7 +352,13 @@ function renderPage(index, pageElement) {
     image.alt = `문서 ${index + 1}페이지`;
     image.loading = 'lazy';
     image.src = objectUrl;
+    image.addEventListener('load', () => {
+      ensureAnnotationCanvas(pageElement);
+      resizeAnnotationCanvas(pageElement);
+      redrawPage(index);
+    }, { once: true });
     pageElement.replaceChildren(image);
+    ensureAnnotationCanvas(pageElement);
     trimRenderedPages();
   } catch (error) {
     pageElement.dataset.rendered = 'false';
@@ -143,7 +393,6 @@ async function buildPagePlaceholders(pageCount) {
     }
   }, { rootMargin: '900px 0px' });
 
-  // Observe in chunks so a very long document does not block one animation frame.
   const pages = pagesNode.children;
   for (let index = 0; index < pages.length; index += 1) {
     renderObserver.observe(pages[index]);
@@ -152,6 +401,7 @@ async function buildPagePlaceholders(pageCount) {
 
   window.addEventListener('scroll', schedulePageSync, { passive: true });
   window.addEventListener('resize', schedulePageSync);
+  window.addEventListener('resize', applyAnnotationState);
   schedulePageSync();
 }
 
@@ -178,7 +428,6 @@ async function openDocument() {
   if (pageCount > 5000) throw new Error('페이지가 5,000장을 초과하는 문서는 초기 버전에서 지원하지 않습니다.');
 
   documentPageCount = pageCount;
-  // Report the count before building the DOM so the native reader can leave its loading state.
   globalThis.AndroidBridge?.onDocumentLoaded?.(pageCount);
 
   await buildPagePlaceholders(pageCount);
